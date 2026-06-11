@@ -21,6 +21,50 @@ class Split {
       );
 }
 
+/// 인터벌 운동/회복 세그먼트 (Health Connect ExerciseSegment).
+/// type: running / walking / rest / pause / stretching / hiit / other / unknown
+class RunSegment {
+  final DateTime startTime;
+  final DateTime endTime;
+  final String type;
+  final double distanceM;
+  final double? avgHr;
+
+  const RunSegment({
+    required this.startTime,
+    required this.endTime,
+    required this.type,
+    this.distanceM = 0,
+    this.avgHr,
+  });
+
+  int get durationSec => endTime.difference(startTime).inSeconds;
+
+  bool get isActive => type == 'running' || type == 'hiit';
+
+  /// 구간 환산 페이스 (초/km). 거리가 거의 없으면 0.
+  int get paceSecPerKm =>
+      distanceM >= 30 ? (durationSec / (distanceM / 1000)).round() : 0;
+
+  Map<String, dynamic> toJson() => {
+        's': startTime.millisecondsSinceEpoch,
+        'e': endTime.millisecondsSinceEpoch,
+        'type': type,
+        'distM': distanceM,
+        if (avgHr != null) 'avgHr': avgHr,
+      };
+
+  factory RunSegment.fromJson(Map<String, dynamic> json) => RunSegment(
+        startTime:
+            DateTime.fromMillisecondsSinceEpoch((json['s'] as num).toInt()),
+        endTime:
+            DateTime.fromMillisecondsSinceEpoch((json['e'] as num).toInt()),
+        type: json['type'] as String? ?? 'unknown',
+        distanceM: (json['distM'] as num?)?.toDouble() ?? 0,
+        avgHr: (json['avgHr'] as num?)?.toDouble(),
+      );
+}
+
 /// 심박 샘플 (1분 단위 다운샘플링되어 저장됨)
 class HrSample {
   final DateTime time;
@@ -50,6 +94,7 @@ class RunSession {
   final int? steps;
   final double? elevationM;
   final List<Split> splits;
+  final List<RunSegment> segments;
   final List<HrSample> hrSeries;
   final String sourceName;
 
@@ -65,6 +110,7 @@ class RunSession {
     this.steps,
     this.elevationM,
     this.splits = const [],
+    this.segments = const [],
     this.hrSeries = const [],
     this.sourceName = '',
   });
@@ -92,6 +138,7 @@ class RunSession {
         if (steps != null) 'steps': steps,
         if (elevationM != null) 'elevationM': elevationM,
         'splits': splits.map((s) => s.toJson()).toList(),
+        'segments': segments.map((s) => s.toJson()).toList(),
         'hrSeries': hrSeries.map((h) => h.toJson()).toList(),
         'sourceName': sourceName,
       };
@@ -111,6 +158,10 @@ class RunSession {
         elevationM: (json['elevationM'] as num?)?.toDouble(),
         splits: (json['splits'] as List? ?? [])
             .map((e) => Split.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        segments: (json['segments'] as List? ?? [])
+            .map((e) =>
+                RunSegment.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
         hrSeries: (json['hrSeries'] as List? ?? [])
             .map((e) => HrSample.fromJson(Map<String, dynamic>.from(e as Map)))

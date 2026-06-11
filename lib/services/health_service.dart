@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 
 import '../models/run_session.dart';
@@ -8,6 +9,9 @@ import '../models/run_session.dart';
 /// (삼성헬스 설정 > 헬스 커넥트 > 데이터 동기화 켜기).
 class HealthService {
   final Health _health = Health();
+
+  /// health 패키지 미지원 데이터(세그먼트/고도/VO2max)용 네이티브 채널
+  static const _extra = MethodChannel('runlog/hc_extra');
 
   static const List<HealthDataType> _types = [
     HealthDataType.WORKOUT,
@@ -27,6 +31,107 @@ class HealthService {
         await _health.hasPermissions(_types, permissions: permissions);
     if (has == true) return true;
     return _health.requestAuthorization(_types, permissions: permissions);
+  }
+
+  /// 고도·VO2max 읽기 권한 (네이티브 컨트랙트). 실패해도 동기화는 계속.
+  Future<bool> requestExtraPermissions() async {
+    try {
+      return await _extra.invokeMethod<bool>('requestExtraPermissions') ??
+          false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// VO2max 시계열 (체력 추세용). 삼성헬스가 동기화 안 하면 빈 리스트.
+  Future<List<(DateTime, double)>> fetchVo2Series(
+      DateTime start, DateTime end) async {
+    try {
+      final raw = await _extra.invokeMethod<List<dynamic>>(
+        'getVo2MaxSeries',
+        {
+          'startMs': start.millisecondsSinceEpoch,
+          'endMs': end.millisecondsSinceEpoch,
+        },
+      );
+      return (raw ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .map((m) => (
+                DateTime.fromMillisecondsSinceEpoch(
+                    (m['timeMs'] as num).toInt()),
+                (m['value'] as num).toDouble(),
+              ))
+          .toList()
+        ..sort((a, b) => a.$1.compareTo(b.$1));
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<List<RunSegment>> _fetchSegments(String uuid, DateTime start,
+      DateTime end, List<DistDelta> deltas, List<HrSample> hrSamples) async {
+    try {
+      final raw = await _extra.invokeMethod<List<dynamic>>(
+        'getSessionDetails',
+        {
+          'startMs': start.millisecondsSinceEpoch,
+          'endMs': end.millisecondsSinceEpoch,
+        },
+      );
+      for (final s in raw ?? []) {
+        final session = Map<String, dynamic>.from(s as Map);
+        if (session['uuid'] != uuid) continue;
+        return (session['segments'] as List? ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .map((m) {
+          final segStart = DateTime.fromMillisecondsSinceEpoch(
+              (m['startMs'] as num).toInt());
+          final segEnd = DateTime.fromMillisecondsSinceEpoch(
+              (m['endMs'] as num).toInt());
+          return RunSegment(
+            startTime: segStart,
+            endTime: segEnd,
+            type: m['type'] as String? ?? 'unknown',
+            distanceM: distanceBetween(deltas, segStart, segEnd),
+            avgHr: _avgHrBetween(hrSamples, segStart, segEnd),
+          );
+        }).toList();
+      }
+      return const [];
+    } catch (_) {
+      return const []; // 세그먼트 미지원/미제공 — 1km 스플릿으로 대체 표시
+    }
+  }
+
+  Future<double> _fetchElevation(DateTime start, DateTime end) async {
+    try {
+      return await _extra.invokeMethod<double>(
+            'getElevationGained',
+            {
+              'startMs': start.millisecondsSinceEpoch,
+              'endMs': end.millisecondsSinceEpoch,
+            },
+          ) ??
+          0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// [from]~[to] 구간의 거리(미터) — 델타가 경계에 걸치면 시간 비례 배분
+  static double distanceBetween(
+      List<DistDelta> deltas, DateTime from, DateTime to) {
+    double sum = 0;
+    for (final d in deltas) {
+      final overlapStart = d.from.isAfter(from) ? d.from : from;
+      final overlapEnd = d.to.isBefore(to) ? d.to : to;
+      final overlapMs =
+          overlapEnd.difference(overlapStart).inMilliseconds;
+      if (overlapMs <= 0) continue;
+      final spanMs = d.to.difference(d.from).inMilliseconds;
+      sum += spanMs > 0 ? d.meters * overlapMs / spanMs : d.meters;
+    }
+    return sum;
   }
 
   /// 30일 이전 과거 데이터 읽기 권한 (READ_HEALTH_DATA_HISTORY).
@@ -121,8 +226,12 @@ class HealthService {
     }
 
     // 케이던스(걸음) — 삼성헬스가 미제공하면 null
-    // (상승고도는 health 패키지가 ELEVATION_GAINED 미지원이라 보류)
     final steps = (await _sumNumeric(HealthDataType.STEPS, start, end)).round();
+
+    // 인터벌 세그먼트(운동/회복)·상승고도 — 네이티브 채널
+    final segments =
+        await _fetchSegments(point.uuid, start, end, deltas, hrSamples);
+    final elevation = await _fetchElevation(start, end);
 
     final avgHr = hrSamples.isEmpty
         ? null
@@ -141,6 +250,8 @@ class HealthService {
       maxHr: maxHr,
       calories: calories,
       steps: steps > 0 ? steps : null,
+      elevationM: elevation > 0 ? elevation : null,
+      segments: segments,
       splits: computeSplits(start, deltas, hrSamples),
       hrSeries: downsampleHr(hrSamples, const Duration(minutes: 1)),
       sourceName: point.sourceName,

@@ -43,3 +43,10 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // health 플러그인과 동일 버전 — 세그먼트/고도/VO2max 직접 조회용
+    implementation("androidx.health.connect:connect-client:1.2.0-alpha02")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+}

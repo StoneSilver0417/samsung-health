@@ -65,14 +65,18 @@ class RunDetailScreen extends ConsumerWidget {
             _sectionTitle('심박존 분포'),
             _hrZones(run),
           ],
+          if (run.segments.isNotEmpty) ...[
+            _sectionTitle('인터벌'),
+            _segments(run),
+          ],
           if (run.splits.isNotEmpty) ...[
-            _sectionTitle('스플릿'),
+            _sectionTitle('1km 스플릿'),
             _splits(run),
-          ] else
+          ] else if (run.segments.isEmpty)
             const Padding(
               padding: EdgeInsets.all(20),
               child: Text(
-                '스플릿 데이터 없음 — 삼성헬스가 거리 시계열을 제공하지 않은 세션입니다',
+                '구간 데이터 없음 — 삼성헬스가 거리 시계열을 제공하지 않은 세션입니다',
                 style: kMetricLabelStyle,
               ),
             ),
@@ -246,6 +250,94 @@ class RunDetailScreen extends ConsumerWidget {
               ),
             );
           }),
+        ),
+      ),
+    );
+  }
+
+  static final _segmentLabels = {
+    'running': ('운동', AppColors.neon),
+    'hiit': ('HIIT', AppColors.neon),
+    'walking': ('회복', AppColors.textSecondary),
+    'rest': ('회복', AppColors.textSecondary),
+    'pause': ('일시정지', AppColors.textSecondary),
+    'stretching': ('스트레칭', AppColors.zoneColors[0]),
+    'other': ('구간', AppColors.textSecondary),
+    'unknown': ('구간', AppColors.textSecondary),
+  };
+
+  /// 삼성헬스 인터벌 화면과 같은 구성: 세트 / 종류 / 시간 / 거리 / 페이스
+  Widget _segments(RunSession run) {
+    var setNo = 0;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: const [
+                SizedBox(width: 30, child: Text('세트', style: kMetricLabelStyle)),
+                SizedBox(width: 64, child: Text('종류', style: kMetricLabelStyle)),
+                Expanded(
+                    child: Text('시간',
+                        textAlign: TextAlign.end, style: kMetricLabelStyle)),
+                Expanded(
+                    child: Text('거리(km)',
+                        textAlign: TextAlign.end, style: kMetricLabelStyle)),
+                Expanded(
+                    child: Text('페이스(/km)',
+                        textAlign: TextAlign.end, style: kMetricLabelStyle)),
+              ],
+            ),
+            const Divider(height: 16, color: Colors.white12),
+            ...run.segments.map((seg) {
+              final (label, color) =
+                  _segmentLabels[seg.type] ?? _segmentLabels['unknown']!;
+              if (seg.isActive) setNo++;
+              final rowStyle = TextStyle(
+                color: seg.isActive
+                    ? AppColors.textPrimary
+                    : AppColors.textSecondary,
+                fontWeight:
+                    seg.isActive ? FontWeight.w800 : FontWeight.w500,
+                fontSize: 14,
+              );
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(
+                  children: [
+                    SizedBox(
+                        width: 30,
+                        child: Text(seg.isActive ? '$setNo' : '',
+                            style: rowStyle)),
+                    SizedBox(
+                      width: 64,
+                      child: Text(label,
+                          style: TextStyle(
+                              color: color,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14)),
+                    ),
+                    Expanded(
+                        child: Text(fmtDuration(seg.durationSec),
+                            textAlign: TextAlign.end, style: rowStyle)),
+                    Expanded(
+                        child: Text(
+                            (seg.distanceM / 1000).toStringAsFixed(2),
+                            textAlign: TextAlign.end,
+                            style: rowStyle)),
+                    Expanded(
+                        child: Text(
+                            seg.paceSecPerKm > 0
+                                ? fmtPace(seg.paceSecPerKm)
+                                : '—',
+                            textAlign: TextAlign.end,
+                            style: rowStyle)),
+                  ],
+                ),
+              );
+            }),
+          ],
         ),
       ),
     );

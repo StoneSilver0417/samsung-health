@@ -19,6 +19,10 @@ abstract class RunRepository {
   DateTime? get lastSyncedAt;
   Future<void> setLastSyncedAt(DateTime t);
 
+  /// VO2max 시계열 캐시 (시간, 값)
+  List<(DateTime, double)> getVo2Series();
+  Future<void> saveVo2Series(List<(DateTime, double)> series);
+
   List<EarnedBadge> getEarnedBadges();
   Future<void> saveEarnedBadges(List<EarnedBadge> badges);
 }
@@ -83,6 +87,25 @@ class HiveRunRepository implements RunRepository {
   @override
   Future<void> setLastSyncedAt(DateTime t) =>
       _meta.put('lastSyncedAt', t.millisecondsSinceEpoch);
+
+  @override
+  List<(DateTime, double)> getVo2Series() {
+    final raw = _meta.get('vo2Series') as String?;
+    if (raw == null) return const [];
+    return (jsonDecode(raw) as List)
+        .map((e) => (
+              DateTime.fromMillisecondsSinceEpoch((e[0] as num).toInt()),
+              (e[1] as num).toDouble(),
+            ))
+        .toList();
+  }
+
+  @override
+  Future<void> saveVo2Series(List<(DateTime, double)> series) => _meta.put(
+        'vo2Series',
+        jsonEncode(
+            series.map((e) => [e.$1.millisecondsSinceEpoch, e.$2]).toList()),
+      );
 
   @override
   List<EarnedBadge> getEarnedBadges() => _badges.values

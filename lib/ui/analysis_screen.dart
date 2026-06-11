@@ -16,6 +16,7 @@ class AnalysisScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final runs = ref.watch(runsProvider).value ?? const <RunSession>[];
     final stats = ref.watch(statsProvider);
+    final vo2 = ref.watch(vo2SeriesProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('분석')),
@@ -28,6 +29,10 @@ class AnalysisScreen extends ConsumerWidget {
                 _weeklyBarChart(runs),
                 _sectionTitle('평균 페이스 추이'),
                 _paceChart(runs),
+                if (vo2.isNotEmpty) ...[
+                  _sectionTitle('최대 산소 섭취량 (VO₂max)'),
+                  _vo2Card(vo2),
+                ],
                 _sectionTitle('개인 기록 (PB)'),
                 _pbCard(stats),
               ],
@@ -172,6 +177,75 @@ class AnalysisScreen extends ConsumerWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// VO2max 추이 — 체력 증진의 정량 지표 (PRD 1.3)
+  Widget _vo2Card(List<(DateTime, double)> series) {
+    final latest = series.last;
+    final spots = List.generate(
+        series.length, (i) => FlSpot(i.toDouble(), series[i].$2));
+    final values = series.map((e) => e.$2);
+    final minY = values.reduce((a, b) => a < b ? a : b) - 1;
+    final maxY = values.reduce((a, b) => a > b ? a : b) + 1;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(latest.$2.toStringAsFixed(1),
+                    style: kMetricStyle.copyWith(
+                        color: AppColors.zoneColors[1], fontSize: 34)),
+                const SizedBox(width: 6),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 4),
+                  child: Text('ml/kg/분', style: kMetricLabelStyle),
+                ),
+                const Spacer(),
+                Text(DateFormat('M/d 기준').format(latest.$1),
+                    style: kMetricLabelStyle),
+              ],
+            ),
+            if (series.length >= 2) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 120,
+                child: LineChart(
+                  LineChartData(
+                    minY: minY,
+                    maxY: maxY,
+                    gridData: const FlGridData(show: false),
+                    titlesData: const FlTitlesData(
+                      topTitles: AxisTitles(),
+                      rightTitles: AxisTitles(),
+                      bottomTitles: AxisTitles(),
+                      leftTitles: AxisTitles(
+                        sideTitles:
+                            SideTitles(showTitles: true, reservedSize: 36),
+                      ),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: spots,
+                        isCurved: true,
+                        color: AppColors.zoneColors[1],
+                        barWidth: 2.5,
+                        dotData: const FlDotData(show: true),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

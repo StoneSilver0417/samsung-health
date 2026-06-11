@@ -39,11 +39,19 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
         return const SyncResult(error: 'Health Connect 권한이 거부되었습니다');
       }
 
+      // 고도·VO2max 추가 권한 (거부해도 기본 동기화는 진행)
+      await health.requestExtraPermissions();
+
       final since =
           repo.lastSyncedAt?.subtract(const Duration(days: 1));
       final fetched = await health.fetchRuns(since: since);
       final added = await repo.upsertAll(fetched);
       await repo.setLastSyncedAt(DateTime.now());
+
+      // VO2max 추세 (최근 90일)
+      final vo2 = await health.fetchVo2Series(
+          DateTime.now().subtract(const Duration(days: 90)), DateTime.now());
+      if (vo2.isNotEmpty) await repo.saveVo2Series(vo2);
 
       final all = await repo.getAll();
       final newBadges =
@@ -121,11 +129,56 @@ final statsProvider = Provider<StatsSummary>((ref) {
   return StatsSummary.fromRuns(runs);
 });
 
+final vo2SeriesProvider = Provider<List<(DateTime, double)>>((ref) {
+  ref.watch(runsProvider); // 동기화 후 갱신
+  return ref.read(repoProvider).getVo2Series();
+});
+
 final earnedBadgesProvider = Provider<Map<String, EarnedBadge>>((ref) {
   ref.watch(runsProvider); // 동기화 후 재평가 반영
   final repo = ref.read(repoProvider);
   return {for (final b in repo.getEarnedBadges()) b.badgeId: b};
 });
+
+/// 23일 프로그램 스타일 인터벌: 준비 3분 → (운동 6분 + 회복 1분)× → 마무리
+List<RunSegment> _demoSegments(
+    DateTime start, int durationSec, double totalM, Random rng) {
+  final segments = <RunSegment>[];
+  const warmupSec = 180, runSec = 360, restSec = 60;
+  var cursor = start;
+  var remaining = durationSec;
+
+  // 걷기 구간 속도 ~90m/분, 나머지 거리를 러닝 구간에 배분
+  final walkSecTotal =
+      warmupSec + ((durationSec - warmupSec) ~/ (runSec + restSec)) * restSec;
+  final walkM = walkSecTotal / 60 * 90;
+  final runSecTotal = durationSec - walkSecTotal;
+  final runSpeedMps = runSecTotal > 0 ? (totalM - walkM) / runSecTotal : 0.0;
+
+  void add(String type, int sec) {
+    if (sec <= 0) return;
+    final end = cursor.add(Duration(seconds: sec));
+    final isRun = type == 'running';
+    segments.add(RunSegment(
+      startTime: cursor,
+      endTime: end,
+      type: type,
+      distanceM: isRun ? runSpeedMps * sec : sec / 60 * 90,
+      avgHr: isRun ? 148 + rng.nextInt(12).toDouble() : 122 + rng.nextInt(8).toDouble(),
+    ));
+    cursor = end;
+    remaining -= sec;
+  }
+
+  add('walking', warmupSec);
+  while (remaining > runSec + restSec) {
+    add('running', runSec);
+    add('walking', restSec);
+  }
+  add('running', max(0, remaining - 60));
+  add('walking', remaining);
+  return segments;
+}
 
 /// 야간 러닝(21~22시, 강변 코스) 패턴의 데모 데이터 (PRD 1.1 배경 반영)
 /// 4주 × 주 3회 = 12회. 마지막 회차는 10K 장거리 — 배지 다양하게 점등.
@@ -180,6 +233,7 @@ List<RunSession> _generateDemoRuns() {
       calories: km * 62,
       steps: (durationSec / 60 * (162 + rng.nextInt(12))).round(),
       elevationM: 6 + rng.nextInt(20).toDouble(),
+      segments: _demoSegments(start, durationSec, km * 1000, rng),
       splits: splits,
       hrSeries: hrSeries,
       sourceName: 'demo',

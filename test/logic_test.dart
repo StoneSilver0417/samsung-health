@@ -45,6 +45,42 @@ void main() {
     });
   });
 
+  group('distanceBetween (세그먼트 거리 배분)', () {
+    test('경계에 걸친 델타는 시간 비례로 나눈다', () {
+      final t0 = DateTime(2026, 6, 1, 21);
+      // 0~60초 100m, 60~120초 100m
+      final deltas = [
+        DistDelta(from: t0, to: t0.add(const Duration(seconds: 60)), meters: 100),
+        DistDelta(
+            from: t0.add(const Duration(seconds: 60)),
+            to: t0.add(const Duration(seconds: 120)),
+            meters: 100),
+      ];
+      // 30~90초 구간 → 첫 델타 절반(50) + 둘째 델타 절반(50)
+      final d = HealthService.distanceBetween(
+        deltas,
+        t0.add(const Duration(seconds: 30)),
+        t0.add(const Duration(seconds: 90)),
+      );
+      expect(d, closeTo(100, 0.01));
+    });
+
+    test('겹치지 않으면 0', () {
+      final t0 = DateTime(2026, 6, 1);
+      final deltas = [
+        DistDelta(from: t0, to: t0.add(const Duration(minutes: 1)), meters: 150),
+      ];
+      expect(
+        HealthService.distanceBetween(
+          deltas,
+          t0.add(const Duration(minutes: 5)),
+          t0.add(const Duration(minutes: 6)),
+        ),
+        0,
+      );
+    });
+  });
+
   group('downsampleHr', () {
     test('1분 버킷 평균', () {
       final start = DateTime(2026, 6, 1);
