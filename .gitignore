@@ -1,11 +1,24 @@
-node_modules/
-dist/
+# Flutter/Dart
+.dart_tool/
+.packages
 build/
+*.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+
+# IDE
+.idea/
+.vscode/
+
+# 환경/비밀
 .env
 .env.*
-*.log
+*.jks
+key.properties
+google-services.json
+
+# OS
 .DS_Store
 Thumbs.db
-__pycache__/
-*.pyc
-.venv/
+*.log
