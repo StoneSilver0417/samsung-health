@@ -7,6 +7,7 @@ import '../providers.dart';
 import 'import_screen.dart';
 import 'run_detail_screen.dart';
 import 'theme.dart';
+import 'widgets/level_card.dart';
 import 'widgets/run_card.dart';
 import 'widgets/weekly_ring.dart';
 
@@ -40,7 +41,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
     for (final badge in result.newBadges) {
       messenger.showSnackBar(SnackBar(
-        content: Text('${badge.emoji} 새 업적: ${badge.title} — ${badge.description}'),
+        content: Text('🏅 새 업적: ${badge.title} — ${badge.description}'),
         backgroundColor: AppColors.neonDim,
         duration: const Duration(seconds: 4),
       ));
@@ -116,6 +117,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
             const SizedBox(height: 8),
+            LevelCard(totalKm: stats.totalKm),
             _summaryRow(stats),
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 18, 20, 4),

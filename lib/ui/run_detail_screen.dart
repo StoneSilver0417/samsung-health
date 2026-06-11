@@ -91,16 +91,19 @@ class RunDetailScreen extends ConsumerWidget {
       );
 
   Widget _header(RunSession run) {
-    Widget cell(String value, String label) => Column(
-          children: [
-            Text(value,
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900)),
-            Text(label, style: kMetricLabelStyle),
-          ],
-        );
+    final cells = <(String, String)>[
+      (fmtDuration(run.durationSec), '시간'),
+      (fmtPace(run.avgPaceSecPerKm), '평균 페이스'),
+      if (run.avgHr != null) ('${run.avgHr!.round()}', '평균 심박'),
+      if (run.maxHr != null) ('${run.maxHr!.round()}', '최고 심박'),
+      if (run.cadenceSpm != null)
+        ('${run.cadenceSpm!.round()}', '케이던스 spm'),
+      if (run.elevationM != null)
+        ('${run.elevationM!.round()} m', '상승고도'),
+      if (run.calories != null) ('${run.calories!.round()}', 'kcal'),
+      if (run.steps != null) ('${run.steps}', '걸음'),
+    ];
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -108,17 +111,29 @@ class RunDetailScreen extends ConsumerWidget {
           children: [
             Text('${run.distanceKm.toStringAsFixed(2)} km',
                 style: kMetricStyle.copyWith(color: AppColors.neon)),
-            const SizedBox(height: 14),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                cell(fmtDuration(run.durationSec), '시간'),
-                cell(fmtPace(run.avgPaceSecPerKm), '평균 페이스'),
-                if (run.avgHr != null)
-                  cell('${run.avgHr!.round()}', '평균 심박'),
-                if (run.calories != null)
-                  cell('${run.calories!.round()}', 'kcal'),
-              ],
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 16,
+              alignment: WrapAlignment.center,
+              children: cells
+                  .map((c) => SizedBox(
+                        width: 86,
+                        child: Column(
+                          children: [
+                            Text(c.$1,
+                                style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w900)),
+                            const SizedBox(height: 2),
+                            Text(c.$2,
+                                textAlign: TextAlign.center,
+                                style: kMetricLabelStyle),
+                          ],
+                        ),
+                      ))
+                  .toList(),
             ),
           ],
         ),

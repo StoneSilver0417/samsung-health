@@ -74,7 +74,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     for (final badge in result.newBadges) {
       messenger.showSnackBar(SnackBar(
         content:
-            Text('${badge.emoji} 새 업적: ${badge.title} — ${badge.description}'),
+            Text('🏅 새 업적: ${badge.title} — ${badge.description}'),
         backgroundColor: AppColors.neonDim,
         duration: const Duration(seconds: 4),
       ));

@@ -128,19 +128,25 @@ final earnedBadgesProvider = Provider<Map<String, EarnedBadge>>((ref) {
 });
 
 /// 야간 러닝(21~22시, 강변 코스) 패턴의 데모 데이터 (PRD 1.1 배경 반영)
+/// 4주 × 주 3회 = 12회. 마지막 회차는 10K 장거리 — 배지 다양하게 점등.
 List<RunSession> _generateDemoRuns() {
   final rng = Random(42);
   final runs = <RunSession>[];
   final now = DateTime.now();
 
-  for (int i = 0; i < 10; i++) {
-    final daysAgo = (i * 2.2).round() + 1;
+  for (int i = 0; i < 12; i++) {
+    // 주 3회 패턴 (월·수·금 느낌): i를 3개씩 한 주로 묶음
+    final week = i ~/ 3;
+    final dayInWeek = (i % 3) * 2;
+    final daysAgo = week * 7 + dayInWeek + 1;
     final start = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: daysAgo))
         .add(Duration(hours: 21, minutes: rng.nextInt(40)));
-    // 최근일수록 거리·페이스 개선 (체력 증진 추세 시각화 확인용)
-    final km = 2.5 + (10 - i) * 0.35 + rng.nextDouble() * 0.5;
-    final paceSec = 420 + i * 6 + rng.nextInt(20); // 7'00"대에서 점진 개선
+    // 최근일수록 거리·페이스 개선, i==0은 10K 장거리
+    final km = i == 0
+        ? 10.3
+        : 3.0 + (11 - i) * 0.4 + rng.nextDouble() * 0.5;
+    final paceSec = 415 + i * 5 + rng.nextInt(20); // 7'00"대에서 점진 개선
     final durationSec = (km * paceSec).round();
     final end = start.add(Duration(seconds: durationSec));
 
@@ -172,6 +178,8 @@ List<RunSession> _generateDemoRuns() {
       avgHr: hrSeries.fold<double>(0, (s, h) => s + h.bpm) / hrSeries.length,
       maxHr: hrSeries.map((h) => h.bpm).reduce(max),
       calories: km * 62,
+      steps: (durationSec / 60 * (162 + rng.nextInt(12))).round(),
+      elevationM: 6 + rng.nextInt(20).toDouble(),
       splits: splits,
       hrSeries: hrSeries,
       sourceName: 'demo',

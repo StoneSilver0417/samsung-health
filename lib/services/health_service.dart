@@ -120,6 +120,10 @@ class HealthService {
       calories = calSum > 0 ? calSum : null;
     }
 
+    // 케이던스(걸음) — 삼성헬스가 미제공하면 null
+    // (상승고도는 health 패키지가 ELEVATION_GAINED 미지원이라 보류)
+    final steps = (await _sumNumeric(HealthDataType.STEPS, start, end)).round();
+
     final avgHr = hrSamples.isEmpty
         ? null
         : hrSamples.fold<double>(0, (s, h) => s + h.bpm) / hrSamples.length;
@@ -136,10 +140,26 @@ class HealthService {
       avgHr: avgHr,
       maxHr: maxHr,
       calories: calories,
+      steps: steps > 0 ? steps : null,
       splits: computeSplits(start, deltas, hrSamples),
       hrSeries: downsampleHr(hrSamples, const Duration(minutes: 1)),
       sourceName: point.sourceName,
     );
+  }
+
+  Future<double> _sumNumeric(
+      HealthDataType type, DateTime start, DateTime end) async {
+    try {
+      final points = await _health.getHealthDataFromTypes(
+        types: [type],
+        startTime: start,
+        endTime: end,
+      );
+      return points.where((p) => p.value is NumericHealthValue).fold<double>(
+          0, (sum, p) => sum + (p.value as NumericHealthValue).numericValue);
+    } catch (_) {
+      return 0; // 타입 미지원 기기에서도 동기화는 계속
+    }
   }
 
   /// 거리 델타 시계열로 km별 스플릿 산출.

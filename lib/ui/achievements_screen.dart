@@ -8,7 +8,7 @@ import '../models/run_session.dart';
 import '../providers.dart';
 import 'theme.dart';
 
-/// 배지 보관함 (PRD 4.3) — 획득 배지는 컬러, 미획득은 실루엣 + 진행률.
+/// 배지 보관함 (PRD 4.3) — 카테고리별 섹션, 획득은 컬러 / 미획득은 흑백 실루엣 + 진행률.
 class AchievementsScreen extends ConsumerWidget {
   const AchievementsScreen({super.key});
 
@@ -21,76 +21,170 @@ class AchievementsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text('업적  ${earned.length}/${kBadges.length}'),
       ),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(16),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          childAspectRatio: 0.95,
-        ),
-        itemCount: kBadges.length,
-        itemBuilder: (context, i) {
-          final badge = kBadges[i];
-          final earnedBadge = earned[badge.id];
-          final isEarned = earnedBadge != null;
-          final progress = isEarned
-              ? null
-              : AchievementEngine.progressText(badge.id, runs);
-
-          return Container(
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(16),
-              border: isEarned
-                  ? Border.all(
-                      color: AppColors.neon.withValues(alpha: 0.5), width: 1.5)
-                  : null,
-            ),
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Opacity(
-                  opacity: isEarned ? 1 : 0.25,
-                  child: Text(badge.emoji,
-                      style: const TextStyle(fontSize: 44)),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  badge.title,
-                  style: TextStyle(
-                    color: isEarned
-                        ? AppColors.textPrimary
-                        : AppColors.textSecondary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  badge.description,
-                  textAlign: TextAlign.center,
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 32),
+        children: [
+          for (final category in BadgeCategory.values) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+              child: Text(category.label,
                   style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 11),
-                ),
-                const SizedBox(height: 6),
-                if (isEarned)
-                  Text(
-                    DateFormat('yyyy.M.d').format(earnedBadge.earnedAt),
-                    style: const TextStyle(
-                        color: AppColors.neon,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700),
-                  )
-                else if (progress != null)
-                  Text(progress,
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 11)),
-              ],
+                      color: AppColors.textPrimary,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800)),
             ),
-          );
-        },
+            GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              childAspectRatio: 0.72,
+              children: kBadges
+                  .where((b) => b.category == category)
+                  .map((b) => _BadgeTile(
+                        badge: b,
+                        earned: earned[b.id],
+                        progress: earned[b.id] == null
+                            ? AchievementEngine.progressText(b.id, runs)
+                            : null,
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BadgeTile extends StatelessWidget {
+  final BadgeDef badge;
+  final EarnedBadge? earned;
+  final String? progress;
+
+  const _BadgeTile({required this.badge, this.earned, this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    final isEarned = earned != null;
+
+    Widget image = ClipOval(
+      child: Image.asset(
+        badge.assetPath,
+        fit: BoxFit.cover,
+      ),
+    );
+    if (!isEarned) {
+      image = Opacity(
+        opacity: 0.35,
+        child: ColorFiltered(
+          colorFilter: const ColorFilter.matrix(<double>[
+            0.2126, 0.7152, 0.0722, 0, 0,
+            0.2126, 0.7152, 0.0722, 0, 0,
+            0.2126, 0.7152, 0.0722, 0, 0,
+            0, 0, 0, 1, 0,
+          ]),
+          child: image,
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => _showDetail(context),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Column(
+          children: [
+            Expanded(child: image),
+            const SizedBox(height: 6),
+            Text(
+              badge.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isEarned
+                    ? AppColors.textPrimary
+                    : AppColors.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              isEarned
+                  ? DateFormat('yyyy.M.d').format(earned!.earnedAt)
+                  : (progress ?? badge.description),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isEarned ? AppColors.neon : AppColors.textSecondary,
+                fontSize: 10.5,
+                fontWeight: isEarned ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDetail(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 170,
+              height: 170,
+              child: earned != null
+                  ? ClipOval(child: Image.asset(badge.assetPath))
+                  : Opacity(
+                      opacity: 0.4,
+                      child: ColorFiltered(
+                        colorFilter: const ColorFilter.matrix(<double>[
+                          0.2126, 0.7152, 0.0722, 0, 0,
+                          0.2126, 0.7152, 0.0722, 0, 0,
+                          0.2126, 0.7152, 0.0722, 0, 0,
+                          0, 0, 0, 1, 0,
+                        ]),
+                        child: ClipOval(child: Image.asset(badge.assetPath)),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 18),
+            Text(badge.title,
+                style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            Text(badge.description,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 14)),
+            const SizedBox(height: 10),
+            if (earned != null)
+              Text(
+                '${DateFormat('yyyy년 M월 d일').format(earned!.earnedAt)} 획득',
+                style: const TextStyle(
+                    color: AppColors.neon,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700),
+              )
+            else if (progress != null)
+              Text(progress!,
+                  style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }

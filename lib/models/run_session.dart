@@ -47,6 +47,8 @@ class RunSession {
   final double? avgHr;
   final double? maxHr;
   final double? calories;
+  final int? steps;
+  final double? elevationM;
   final List<Split> splits;
   final List<HrSample> hrSeries;
   final String sourceName;
@@ -60,6 +62,8 @@ class RunSession {
     this.avgHr,
     this.maxHr,
     this.calories,
+    this.steps,
+    this.elevationM,
     this.splits = const [],
     this.hrSeries = const [],
     this.sourceName = '',
@@ -71,6 +75,11 @@ class RunSession {
   int get avgPaceSecPerKm =>
       distanceM > 0 ? (durationSec / (distanceM / 1000)).round() : 0;
 
+  /// 평균 케이던스 (걸음/분). 걸음 데이터 없으면 null.
+  double? get cadenceSpm => (steps != null && steps! > 0 && durationSec > 0)
+      ? steps! / (durationSec / 60)
+      : null;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'startTime': startTime.millisecondsSinceEpoch,
@@ -80,6 +89,8 @@ class RunSession {
         if (avgHr != null) 'avgHr': avgHr,
         if (maxHr != null) 'maxHr': maxHr,
         if (calories != null) 'calories': calories,
+        if (steps != null) 'steps': steps,
+        if (elevationM != null) 'elevationM': elevationM,
         'splits': splits.map((s) => s.toJson()).toList(),
         'hrSeries': hrSeries.map((h) => h.toJson()).toList(),
         'sourceName': sourceName,
@@ -96,6 +107,8 @@ class RunSession {
         avgHr: (json['avgHr'] as num?)?.toDouble(),
         maxHr: (json['maxHr'] as num?)?.toDouble(),
         calories: (json['calories'] as num?)?.toDouble(),
+        steps: (json['steps'] as num?)?.toInt(),
+        elevationM: (json['elevationM'] as num?)?.toDouble(),
         splits: (json['splits'] as List? ?? [])
             .map((e) => Split.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
