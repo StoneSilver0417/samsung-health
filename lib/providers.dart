@@ -56,6 +56,39 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
     }
   }
 
+  /// 과거 기록 가져오기: [from]부터의 러닝 후보 조회 (저장하지 않음).
+  /// 30일보다 먼 과거는 히스토리 권한을 추가로 요청한다.
+  Future<List<RunSession>> fetchCandidates(DateTime from) async {
+    final health = ref.read(healthServiceProvider);
+    await health.configure();
+    final granted = await health.requestPermissions();
+    if (!granted) {
+      throw Exception('Health Connect 권한이 거부되었습니다');
+    }
+    final needsHistory =
+        DateTime.now().difference(from) > const Duration(days: 29);
+    if (needsHistory) {
+      final historyOk = await health.requestHistoryPermission();
+      if (!historyOk) {
+        throw Exception('과거 데이터 권한이 거부되어 최근 30일만 조회됩니다');
+      }
+    }
+    final runs = await health.fetchRuns(since: from);
+    runs.sort((a, b) => b.startTime.compareTo(a.startTime));
+    return runs;
+  }
+
+  /// 선택된 과거 기록 저장 + 업적 재평가
+  Future<SyncResult> importRuns(List<RunSession> selected) async {
+    final repo = ref.read(repoProvider);
+    final added = await repo.upsertAll(selected);
+    final all = await repo.getAll();
+    final newBadges =
+        await AchievementEngine(repo).evaluate(all.reversed.toList());
+    state = AsyncData(all);
+    return SyncResult(addedCount: added.length, newBadges: newBadges);
+  }
+
   Future<void> deleteRun(String id) async {
     final repo = ref.read(repoProvider);
     await repo.delete(id);

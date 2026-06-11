@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../logic/stats.dart';
 import '../providers.dart';
+import 'import_screen.dart';
 import 'run_detail_screen.dart';
 import 'theme.dart';
 import 'widgets/run_card.dart';
@@ -73,13 +74,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           PopupMenuButton<String>(
             onSelected: (v) async {
               final notifier = ref.read(runsProvider.notifier);
-              if (v == 'demo') {
+              if (v == 'import') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ImportScreen()),
+                );
+              } else if (v == 'demo') {
                 _showResult(await notifier.seedDemoData());
               } else if (v == 'clear') {
                 await notifier.clearAll();
               }
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(value: 'import', child: Text('이전 기록 가져오기')),
               PopupMenuItem(value: 'demo', child: Text('데모 데이터 넣기')),
               PopupMenuItem(value: 'clear', child: Text('데이터 전체 삭제')),
             ],
@@ -121,12 +128,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ...runsAsync.when(
               data: (runs) => runs.isEmpty
                   ? [
-                      const Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Center(
-                          child: Text('아직 기록이 없어요.\n동기화하거나 데모 데이터를 넣어보세요!',
-                              textAlign: TextAlign.center,
-                              style: kMetricLabelStyle),
+                      Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          children: [
+                            const Text(
+                                '아직 기록이 없어요.\n동기화하거나 이전 기록을 가져와보세요!',
+                                textAlign: TextAlign.center,
+                                style: kMetricLabelStyle),
+                            const SizedBox(height: 16),
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.history,
+                                  color: AppColors.neon),
+                              label: const Text('이전 기록 가져오기',
+                                  style:
+                                      TextStyle(color: AppColors.neon)),
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const ImportScreen()),
+                              ),
+                            ),
+                          ],
                         ),
                       )
                     ]

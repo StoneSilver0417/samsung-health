@@ -29,6 +29,14 @@ class HealthService {
     return _health.requestAuthorization(_types, permissions: permissions);
   }
 
+  /// 30일 이전 과거 데이터 읽기 권한 (READ_HEALTH_DATA_HISTORY).
+  /// 기기가 미지원하면 false — 이 경우 30일 범위만 조회 가능.
+  Future<bool> requestHistoryPermission() async {
+    if (!await _health.isHealthDataHistoryAvailable()) return false;
+    if (await _health.isHealthDataHistoryAuthorized()) return true;
+    return _health.requestHealthDataHistoryAuthorization();
+  }
+
   /// [since] 이후의 러닝 세션을 가져온다.
   /// Health Connect는 최초 권한 시점 기준 과거 30일 이전 데이터 조회가 제한되므로
   /// 최초 동기화 범위도 30일로 잡는다 (PRD 3.1 주의사항).
