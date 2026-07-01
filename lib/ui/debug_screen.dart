@@ -102,7 +102,12 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
           ...rows.map((r) => Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                child: Text(format(r), style: kMetricLabelStyle),
+                child: Text(
+                  r.containsKey('error') ? '오류: ${r['error']}' : format(r),
+                  style: r.containsKey('error')
+                      ? const TextStyle(color: Colors.redAccent)
+                      : kMetricLabelStyle,
+                ),
               )),
       ],
     );
