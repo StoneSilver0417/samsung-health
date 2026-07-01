@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../logic/stats.dart';
 import '../providers.dart';
+import 'debug_screen.dart';
 import 'import_screen.dart';
 import 'run_detail_screen.dart';
 import 'theme.dart';
@@ -60,7 +61,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             Text('RunLog'),
             SizedBox(width: 8),
-            Text('v1.5.0',
+            Text('v1.5.2',
                 style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 11,
@@ -94,12 +95,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 _showResult(await notifier.seedDemoData());
               } else if (v == 'clear') {
                 await notifier.clearAll();
+              } else if (v == 'debug') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DebugScreen()),
+                );
               }
             },
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'import', child: Text('이전 기록 가져오기')),
               PopupMenuItem(value: 'demo', child: Text('데모 데이터 넣기')),
               PopupMenuItem(value: 'clear', child: Text('데이터 전체 삭제')),
+              PopupMenuItem(value: 'debug', child: Text('진단: 원본 운동 데이터')),
             ],
           ),
         ],

@@ -142,6 +142,28 @@ class HealthService {
     return _health.requestHealthDataHistoryAuthorization();
   }
 
+  /// 진단용: 필터링 없이 원본 WORKOUT 레코드의 타입/시각/출처를 그대로 반환.
+  /// 동기화 누락 원인 파악(예: 예상치 못한 workoutActivityType) 확인용.
+  Future<List<Map<String, String>>> debugRawWorkouts(DateTime since) async {
+    final now = DateTime.now();
+    final workouts = await _health.getHealthDataFromTypes(
+      types: [HealthDataType.WORKOUT],
+      startTime: since,
+      endTime: now,
+    );
+    return workouts.map((point) {
+      final value = point.value;
+      return {
+        'type': value is WorkoutHealthValue
+            ? value.workoutActivityType.name
+            : value.runtimeType.toString(),
+        'start': point.dateFrom.toIso8601String(),
+        'end': point.dateTo.toIso8601String(),
+        'source': point.sourceName,
+      };
+    }).toList();
+  }
+
   /// [since] 이후의 러닝 세션을 가져온다.
   /// Health Connect는 최초 권한 시점 기준 과거 30일 이전 데이터 조회가 제한되므로
   /// 최초 동기화 범위도 30일로 잡는다 (PRD 3.1 주의사항).
