@@ -142,6 +142,39 @@ class HealthService {
     return _health.requestHealthDataHistoryAuthorization();
   }
 
+  /// 진단용: health 패키지를 거치지 않고 Health Connect SDK를 직접 호출해
+  /// 같은 구간의 세션 목록을 가져온다. health 패키지 자체의 누락 문제인지
+  /// Health Connect 권한/가시성 문제인지 구분하기 위한 대조군.
+  Future<List<Map<String, String>>> debugNativeSessions(DateTime since) async {
+    try {
+      final raw = await _extra.invokeMethod<List<dynamic>>(
+        'getRawSessions',
+        {
+          'startMs': since.millisecondsSinceEpoch,
+          'endMs': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
+      return (raw ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .map((m) => {
+                'exerciseType': '${m['exerciseType']}',
+                'title': '${m['title']}',
+                'start': DateTime.fromMillisecondsSinceEpoch(
+                        (m['startMs'] as num).toInt())
+                    .toIso8601String(),
+                'end': DateTime.fromMillisecondsSinceEpoch(
+                        (m['endMs'] as num).toInt())
+                    .toIso8601String(),
+                'dataOrigin': '${m['dataOrigin']}',
+              })
+          .toList();
+    } catch (e) {
+      return [
+        {'error': '$e'}
+      ];
+    }
+  }
+
   /// 진단용: 필터링 없이 원본 WORKOUT 레코드의 타입/시각/출처를 그대로 반환.
   /// 동기화 누락 원인 파악(예: 예상치 못한 workoutActivityType) 확인용.
   Future<List<Map<String, String>>> debugRawWorkouts(DateTime since) async {

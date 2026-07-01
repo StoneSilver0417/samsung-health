@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers.dart';
 import 'theme.dart';
 
-/// 동기화 누락 진단용 임시 화면. Health Connect 원본 WORKOUT 레코드를
-/// 필터링 없이 그대로 보여준다 (workoutActivityType 확인 목적).
+/// 동기화 누락 진단용 임시 화면. 최근 14일치 운동 기록을 두 경로로 대조한다.
+/// 1) health 패키지 경유 (WORKOUT, 필터 없음)
+/// 2) 네이티브 Health Connect SDK 직접 호출 (health 패키지 우회)
+/// 한쪽에만 나오는 기록이 있으면 어느 쪽 문제인지 바로 구분된다.
 class DebugScreen extends ConsumerStatefulWidget {
   const DebugScreen({super.key});
 
@@ -14,7 +16,8 @@ class DebugScreen extends ConsumerStatefulWidget {
 }
 
 class _DebugScreenState extends ConsumerState<DebugScreen> {
-  List<Map<String, String>>? _rows;
+  List<Map<String, String>>? _viaPackage;
+  List<Map<String, String>>? _viaNative;
   String? _error;
   bool _loading = true;
 
@@ -29,10 +32,12 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
     try {
       await health.configure();
       await health.requestPermissions();
-      final rows = await health
-          .debugRawWorkouts(DateTime.now().subtract(const Duration(days: 14)));
+      final since = DateTime.now().subtract(const Duration(days: 14));
+      final viaPackage = await health.debugRawWorkouts(since);
+      final viaNative = await health.debugNativeSessions(since);
       setState(() {
-        _rows = rows;
+        _viaPackage = viaPackage;
+        _viaNative = viaNative;
         _loading = false;
       });
     } catch (e) {
@@ -46,7 +51,7 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('진단: 원본 운동 데이터 (최근 14일)')),
+      appBar: AppBar(title: const Text('진단: 운동 데이터 대조 (최근 14일)')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -56,24 +61,42 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
                     child: Text(_error!, style: kMetricLabelStyle),
                   ),
                 )
-              : _rows!.isEmpty
-                  ? const Center(child: Text('최근 14일 WORKOUT 레코드 없음'))
-                  : ListView.separated(
-                      itemCount: _rows!.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, i) {
-                        final r = _rows![i];
-                        return ListTile(
-                          title: Text(r['type'] ?? '?',
-                              style: const TextStyle(
-                                  color: AppColors.neon,
-                                  fontWeight: FontWeight.w700)),
-                          subtitle: Text(
-                              '${r['start']} ~ ${r['end']}\n출처: ${r['source']}'),
-                          isThreeLine: true,
-                        );
-                      },
-                    ),
+              : ListView(
+                  children: [
+                    _section('1) health 패키지 경유', _viaPackage!,
+                        (r) => '${r['type']}\n${r['start']} ~ ${r['end']}\n출처: ${r['source']}'),
+                    const Divider(thickness: 4),
+                    _section('2) 네이티브 HC 직접 호출', _viaNative!,
+                        (r) => 'exerciseType=${r['exerciseType']}  title=${r['title']}\n'
+                            '${r['start']} ~ ${r['end']}\n출처: ${r['dataOrigin']}'),
+                  ],
+                ),
+    );
+  }
+
+  Widget _section(String label, List<Map<String, String>> rows,
+      String Function(Map<String, String>) format) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text('$label (${rows.length}건)',
+              style: const TextStyle(
+                  color: AppColors.neon, fontWeight: FontWeight.w800)),
+        ),
+        if (rows.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('기록 없음'),
+          )
+        else
+          ...rows.map((r) => Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                child: Text(format(r), style: kMetricLabelStyle),
+              )),
+      ],
     );
   }
 }

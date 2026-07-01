@@ -48,6 +48,11 @@ class MainActivity : FlutterFragmentActivity() {
                     call.argument<Long>("endMs")!!,
                     result
                 )
+                "getRawSessions" -> readRawSessions(
+                    call.argument<Long>("startMs")!!,
+                    call.argument<Long>("endMs")!!,
+                    result
+                )
                 "getElevationGained" -> readElevation(
                     call.argument<Long>("startMs")!!,
                     call.argument<Long>("endMs")!!,
@@ -113,6 +118,40 @@ class MainActivity : FlutterFragmentActivity() {
                                 "lengthM" to (lap.length?.inMeters ?: 0.0),
                             )
                         },
+                    )
+                }
+                result.success(sessions)
+            } catch (e: Exception) {
+                result.error("HC_ERROR", e.message, null)
+            }
+        }
+    }
+
+    /// 진단용: health 패키지를 거치지 않고 Health Connect SDK로 직접 세션 목록을 읽는다.
+    /// health 패키지 쪽 필터링/변환 문제인지, HC 권한/가시성 문제인지 구분하기 위함.
+    private fun readRawSessions(
+        startMs: Long, endMs: Long, result: MethodChannel.Result
+    ) {
+        lifecycleScope.launch {
+            try {
+                val client = HealthConnectClient.getOrCreate(this@MainActivity)
+                val resp = client.readRecords(
+                    ReadRecordsRequest(
+                        ExerciseSessionRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(
+                            Instant.ofEpochMilli(startMs),
+                            Instant.ofEpochMilli(endMs)
+                        )
+                    )
+                )
+                val sessions = resp.records.map { rec ->
+                    mapOf(
+                        "uuid" to rec.metadata.id,
+                        "exerciseType" to rec.exerciseType,
+                        "title" to (rec.title ?: ""),
+                        "startMs" to rec.startTime.toEpochMilli(),
+                        "endMs" to rec.endTime.toEpochMilli(),
+                        "dataOrigin" to rec.metadata.dataOrigin.packageName,
                     )
                 }
                 result.success(sessions)
