@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-07-01~02 (v1.5.1~1.5.5, 개발 중단)
+
+### 배경
+- 삼성헬스 업데이트 이후 "동기화는 되는데 새 기록만 안 보임" 버그 신고
+- 처음엔 세션 레벨 워크아웃 타입이 RUNNING이 아닌 HIGH_INTENSITY_INTERVAL_TRAINING으로
+  들어와서 필터에서 걸러지는 것으로 추정 → health_service.dart 필터 확장 (실제 원인 아니었음)
+- 앱 내 진단 화면(설정 메뉴 > "진단: 원본 운동 데이터") 추가해 3중으로 대조
+  1) health 패키지 경유 2) 네이티브 Health Connect SDK 직접 호출
+  3) Health Connect Training Plans API(PlannedExerciseSessionRecord) — 권한 미지원으로 확인 불가
+- USB 디버깅(adb)이 끝까지 기기에서 잡히지 않아 로그 확인 불가 → 대신 폰-PC MTP 연결을
+  PowerShell Shell.Application COM 객체로 브라우징해 스크린샷을 직접 가져와 확인하는
+  방법을 사용함 (`New-Object -ComObject Shell.Application` → NameSpace(0x11) → 기기 →
+  내장 저장공간 → DCIM/Screenshots). adb 없이 폰 화면 확인이 필요할 때 재사용 가능.
+
+### 근본 원인 확정
+- 문제의 특정 러닝(6/30)이 **Health Connect 자체에 없음** (health 패키지도, 네이티브 HC
+  직접 조회도, Health Connect 앱 UI도 전부 없음) → 우리 앱 버그가 아니라 삼성헬스 →
+  Health Connect 동기화 자체가 안 된 것
+- Health Connect 권한(읽기/쓰기)은 전부 정상 확인됨 → 권한 문제 아님
+- 원인은 삼성헬스 업데이트가 배터리 최적화 설정을 리셋시켜 "최적화됨(절전)" 상태가 되면서
+  백그라운드 HC 동기화가 제한된 것으로 추정 (설정 > 앱 > 삼성 헬스 > 배터리에서 확인됨)
+- **배터리를 '제한 없음'으로 바꿔도 6/30 기록은 소급 복구 안 됨** (재실행, 수정 후 재저장,
+  캐시 삭제 + 재부팅까지 시도했으나 전부 실패) — 삼성헬스 동기화 큐에 영구적으로 유실된 것으로 판단
+- 이후 새 러닝부터 정상 동기화되는지는 **미검증 상태로 개발 중단**
+
+### 남은 코드 상태
+- `lib/services/health_service.dart`: HIGH_INTENSITY_INTERVAL_TRAINING 허용 필터 (근본 수정 아님, 무해하니 유지)
+- `lib/ui/debug_screen.dart`, `MainActivity.kt`의 getRawSessions/getPlannedSessions:
+  진단용으로 추가됨. 기능적으로는 무해하지만 프로덕션에 필요한 코드는 아님 — 재개 시 정리 여부 판단 필요
+- 버전 1.5.0 → 1.5.5까지 홈 화면 라벨은 하드코딩 문자열이라 pubspec 버전과 수동으로 맞춰야 함 (`home_screen.dart`)
+- GitHub Release `v1.5.1`에 최신 APK 첨부되어 있음 (태그명과 실제 버전 라벨 1.5.5 불일치 — 재개 시 정리 권장)
+
+### 개발 중단 결정
+- 사용자가 이 세션의 반복된 디버깅(APK 7회 재빌드, USB 디버깅 실패, 배터리/캐시 조치 무효)
+  끝에 RunLog 앱 개발을 접기로 결정함 (2026-07-02)
+
 ## 2026-06-13 (v1.5.0)
 
 ### 변경 사항
