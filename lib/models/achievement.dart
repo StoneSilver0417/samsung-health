@@ -2,6 +2,7 @@
 enum BadgeCategory {
   distance('거리'),
   total('누적 거리'),
+  count('러닝 횟수'),
   time('시간'),
   streak('꾸준함'),
   special('스페셜');
@@ -48,7 +49,7 @@ class EarnedBadge {
       );
 }
 
-/// 전체 배지 16종
+/// 전체 배지 25종
 const List<BadgeDef> kBadges = [
   // 거리 (단일 세션)
   BadgeDef(
@@ -65,6 +66,11 @@ const List<BadgeDef> kBadges = [
       id: 'first_10k',
       title: '10K 러너',
       description: '한 번에 10km 달리기',
+      category: BadgeCategory.distance),
+  BadgeDef(
+      id: 'first_half',
+      title: '하프 마라토너',
+      description: '한 번에 21.1km 달리기',
       category: BadgeCategory.distance),
   // 누적 거리
   BadgeDef(
@@ -87,6 +93,27 @@ const List<BadgeDef> kBadges = [
       title: '누적 500K',
       description: '누적 거리 500km',
       category: BadgeCategory.total),
+  BadgeDef(
+      id: 'total_1000k',
+      title: '누적 1000K',
+      description: '누적 거리 1000km',
+      category: BadgeCategory.total),
+  // 러닝 횟수
+  BadgeDef(
+      id: 'runs_25',
+      title: '25회 클럽',
+      description: '총 25회 러닝',
+      category: BadgeCategory.count),
+  BadgeDef(
+      id: 'runs_50',
+      title: '50회 클럽',
+      description: '총 50회 러닝',
+      category: BadgeCategory.count),
+  BadgeDef(
+      id: 'runs_100',
+      title: '100회 클럽',
+      description: '총 100회 러닝',
+      category: BadgeCategory.count),
   // 시간
   BadgeDef(
       id: 'run_10min',
@@ -125,6 +152,11 @@ const List<BadgeDef> kBadges = [
       description: '4주 연속 주 3회 러닝',
       category: BadgeCategory.streak),
   BadgeDef(
+      id: 'streak_8w',
+      title: '8주 스트릭',
+      description: '8주 연속 주 3회 러닝',
+      category: BadgeCategory.streak),
+  BadgeDef(
       id: 'month_10runs',
       title: '월간 개근',
       description: '한 달에 10회 러닝',
@@ -134,5 +166,20 @@ const List<BadgeDef> kBadges = [
       id: 'night_owl',
       title: '야간 러너',
       description: '21시 이후 러닝 10회',
+      category: BadgeCategory.special),
+  BadgeDef(
+      id: 'early_bird',
+      title: '얼리버드',
+      description: '새벽 5~8시 러닝 5회',
+      category: BadgeCategory.special),
+  BadgeDef(
+      id: 'weekend_warrior',
+      title: '주말 전사',
+      description: '주말(토·일) 러닝 10회',
+      category: BadgeCategory.special),
+  BadgeDef(
+      id: 'speed_sub6',
+      title: '스피드스터',
+      description: '평균 페이스 6분/km 이하 달성',
       category: BadgeCategory.special),
 ];

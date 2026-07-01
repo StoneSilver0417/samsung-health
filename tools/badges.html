@@ -32,16 +32,43 @@ const ICONS = {
       C 251 144 247 122 256 100 Z"/>`,
   moon: (c) => `
     <path fill="${c}" d="M276 104 A 48 48 0 1 0 276 196 A 38 38 0 1 1 276 104 Z"/>`,
+  trophy: (c) => `
+    <g stroke="${c}" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M228 106 H284 V146 A28 28 0 0 1 228 146 Z"/>
+      <path d="M228 118 H210 A14 14 0 0 0 226 146"/>
+      <path d="M284 118 H302 A14 14 0 0 1 286 146"/>
+      <line x1="256" y1="174" x2="256" y2="190"/>
+      <line x1="236" y1="190" x2="276" y2="190"/>
+    </g>`,
+  sun: (c) => `
+    <g stroke="${c}" stroke-width="12" fill="none" stroke-linecap="round">
+      <circle cx="256" cy="150" r="22" fill="${c}"/>
+      <line x1="256" y1="100" x2="256" y2="112"/>
+      <line x1="256" y1="188" x2="256" y2="200"/>
+      <line x1="206" y1="150" x2="218" y2="150"/>
+      <line x1="294" y1="150" x2="306" y2="150"/>
+      <line x1="221" y1="115" x2="230" y2="124"/>
+      <line x1="282" y1="115" x2="291" y2="124"/>
+      <line x1="221" y1="185" x2="230" y2="176"/>
+      <line x1="282" y1="185" x2="291" y2="176"/>
+    </g>`,
+  bolt: (c) => `
+    <path fill="${c}" d="M272 98 L216 170 L248 170 L240 202 L298 128 L264 128 Z"/>`,
 };
 
 const BADGES = [
   { id: 'first_run',   hue: '#C8FF3D', dark: '#6d8f1f', icon: 'chevrons', glyph: '1ST', sub: 'FIRST RUN' },
   { id: 'first_5k',    hue: '#C8FF3D', dark: '#6d8f1f', icon: 'chevrons', glyph: '5K',  sub: 'SINGLE RUN' },
   { id: 'first_10k',   hue: '#C8FF3D', dark: '#6d8f1f', icon: 'chevrons', glyph: '10K', sub: 'SINGLE RUN' },
+  { id: 'first_half',  hue: '#C8FF3D', dark: '#6d8f1f', icon: 'chevrons', glyph: '21K', sub: 'HALF' },
   { id: 'total_50k',   hue: '#FFC93D', dark: '#9a7414', icon: 'star',     glyph: '50',  sub: 'TOTAL KM' },
   { id: 'total_100k',  hue: '#FFC93D', dark: '#9a7414', icon: 'star',     glyph: '100', sub: 'TOTAL KM' },
   { id: 'total_250k',  hue: '#FFC93D', dark: '#9a7414', icon: 'star',     glyph: '250', sub: 'TOTAL KM' },
   { id: 'total_500k',  hue: '#FFC93D', dark: '#9a7414', icon: 'star',     glyph: '500', sub: 'TOTAL KM' },
+  { id: 'total_1000k', hue: '#FFC93D', dark: '#9a7414', icon: 'star',     glyph: '1K',  sub: 'TOTAL KM' },
+  { id: 'runs_25',     hue: '#3DFFB0', dark: '#159166', icon: 'trophy',   glyph: '25',  sub: 'TOTAL RUNS' },
+  { id: 'runs_50',     hue: '#3DFFB0', dark: '#159166', icon: 'trophy',   glyph: '50',  sub: 'TOTAL RUNS' },
+  { id: 'runs_100',    hue: '#3DFFB0', dark: '#159166', icon: 'trophy',   glyph: '100', sub: 'TOTAL RUNS' },
   { id: 'run_10min',   hue: '#3DD9FF', dark: '#15768f', icon: 'watch',    glyph: '10',  sub: 'MINUTES' },
   { id: 'run_20min',   hue: '#3DD9FF', dark: '#15768f', icon: 'watch',    glyph: '20',  sub: 'MINUTES' },
   { id: 'run_30min',   hue: '#3DD9FF', dark: '#15768f', icon: 'watch',    glyph: '30',  sub: 'MINUTES' },
@@ -49,12 +76,16 @@ const BADGES = [
   { id: 'week_3runs',  hue: '#FF7A3D', dark: '#993f14', icon: 'flame',    glyph: '3×',  sub: 'ONE WEEK' },
   { id: 'streak_2w',   hue: '#FF7A3D', dark: '#993f14', icon: 'flame',    glyph: '2W',  sub: 'STREAK' },
   { id: 'streak_4w',   hue: '#FF7A3D', dark: '#993f14', icon: 'flame',    glyph: '4W',  sub: 'STREAK' },
+  { id: 'streak_8w',   hue: '#FF7A3D', dark: '#993f14', icon: 'flame',    glyph: '8W',  sub: 'STREAK' },
   { id: 'month_10runs',hue: '#FF7A3D', dark: '#993f14', icon: 'flame',    glyph: '10×', sub: 'ONE MONTH' },
   { id: 'night_owl',   hue: '#B07AFF', dark: '#5c33a8', icon: 'moon',     glyph: '10×', sub: 'NIGHT RUNS' },
+  { id: 'early_bird',  hue: '#FF8A5C', dark: '#9a4a28', icon: 'sun',      glyph: '5×',  sub: 'SUNRISE' },
+  { id: 'weekend_warrior', hue: '#FFD23D', dark: '#9a7d14', icon: 'sun',  glyph: '10×', sub: 'WEEKENDS' },
+  { id: 'speed_sub6',  hue: '#FF4D6D', dark: '#992036', icon: 'bolt',     glyph: 'SUB6', sub: 'PACE' },
 ];
 
 function badgeSvg(b) {
-  const fontSize = b.glyph.length >= 3 ? 132 : 158;
+  const fontSize = b.glyph.length >= 4 ? 104 : (b.glyph.length >= 3 ? 132 : 158);
   return `
   <div class="badge" id="${b.id}">
   <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
@@ -136,8 +167,19 @@ const appIcon = `
 </svg>
 </div>`;
 
-document.getElementById('container').innerHTML =
-  BADGES.map(badgeSvg).join('') + appIcon;
+const _only = new URLSearchParams(location.search).get('only');
+if (_only) {
+  const b = BADGES.find(x => x.id === _only);
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+  document.body.style.margin = '0';
+  document.body.style.lineHeight = '0';
+  document.body.style.background = 'transparent';
+  document.getElementById('container').innerHTML = b ? badgeSvg(b) : '';
+} else {
+  document.getElementById('container').innerHTML =
+    BADGES.map(badgeSvg).join('') + appIcon;
+}
 </script>
 </body>
 </html>

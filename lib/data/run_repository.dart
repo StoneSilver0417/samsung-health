@@ -19,6 +19,11 @@ abstract class RunRepository {
   DateTime? get lastSyncedAt;
   Future<void> setLastSyncedAt(DateTime t);
 
+  /// 동기화에서 영구 제외할 세션 ID (가져오기에서 체크 해제했거나 삭제한 기록)
+  Set<String> getIgnoredIds();
+  Future<void> addIgnoredIds(Iterable<String> ids);
+  Future<void> removeIgnoredIds(Iterable<String> ids);
+
   /// VO2max 시계열 캐시 (시간, 값)
   List<(DateTime, double)> getVo2Series();
   Future<void> saveVo2Series(List<(DateTime, double)> series);
@@ -76,6 +81,7 @@ class HiveRunRepository implements RunRepository {
     await _runs.clear();
     await _badges.clear();
     await _meta.delete('lastSyncedAt');
+    await _meta.delete('ignoredIds');
   }
 
   @override
@@ -87,6 +93,25 @@ class HiveRunRepository implements RunRepository {
   @override
   Future<void> setLastSyncedAt(DateTime t) =>
       _meta.put('lastSyncedAt', t.millisecondsSinceEpoch);
+
+  @override
+  Set<String> getIgnoredIds() {
+    final raw = _meta.get('ignoredIds') as String?;
+    if (raw == null) return {};
+    return (jsonDecode(raw) as List).cast<String>().toSet();
+  }
+
+  @override
+  Future<void> addIgnoredIds(Iterable<String> ids) {
+    final merged = getIgnoredIds()..addAll(ids);
+    return _meta.put('ignoredIds', jsonEncode(merged.toList()));
+  }
+
+  @override
+  Future<void> removeIgnoredIds(Iterable<String> ids) {
+    final remain = getIgnoredIds()..removeAll(ids);
+    return _meta.put('ignoredIds', jsonEncode(remain.toList()));
+  }
 
   @override
   List<(DateTime, double)> getVo2Series() {

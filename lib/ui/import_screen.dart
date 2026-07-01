@@ -64,9 +64,15 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         .where((r) => _checked.contains(r.id))
         .toList();
     if (selected.isEmpty) return;
+    // 체크 해제한 기록은 이후 동기화에서도 영구 제외
+    final excluded = _candidates!
+        .where((r) =>
+            !_checked.contains(r.id) && !_alreadyImported.contains(r.id))
+        .map((r) => r.id);
     setState(() => _loading = true);
-    final result =
-        await ref.read(runsProvider.notifier).importRuns(selected);
+    final result = await ref
+        .read(runsProvider.notifier)
+        .importRuns(selected, excludedIds: excluded);
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(
@@ -74,7 +80,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     for (final badge in result.newBadges) {
       messenger.showSnackBar(SnackBar(
         content:
-            Text('🏅 새 업적: ${badge.title} — ${badge.description}'),
+            Text('새 업적: ${badge.title} — ${badge.description}'),
         backgroundColor: AppColors.neonDim,
         duration: const Duration(seconds: 4),
       ));
@@ -241,7 +247,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                       : '${run.distanceKm.toStringAsFixed(2)} km · '
                           '${fmtDuration(run.durationSec)} · '
                           '${fmtPace(run.avgPaceSecPerKm)}'
-                          '${run.avgHr != null ? ' · ♥${run.avgHr!.round()}' : ''}',
+                          '${run.avgHr != null ? ' · 심박 ${run.avgHr!.round()}' : ''}',
                   style: kMetricLabelStyle,
                 ),
               );

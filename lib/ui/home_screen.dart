@@ -41,7 +41,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
     for (final badge in result.newBadges) {
       messenger.showSnackBar(SnackBar(
-        content: Text('🏅 새 업적: ${badge.title} — ${badge.description}'),
+        content: Text('새 업적: ${badge.title} — ${badge.description}'),
         backgroundColor: AppColors.neonDim,
         duration: const Duration(seconds: 4),
       ));
@@ -56,7 +56,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('🏃 RunLog'),
+        title: const Row(
+          children: [
+            Text('RunLog'),
+            SizedBox(width: 8),
+            Text('v1.5.0',
+                style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w400)),
+          ],
+        ),
         actions: [
           if (_syncing)
             const Padding(

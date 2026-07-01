@@ -72,6 +72,14 @@ class RunDetailScreen extends ConsumerWidget {
           if (run.splits.isNotEmpty) ...[
             _sectionTitle('1km 스플릿'),
             _splits(run),
+            if (_allSamePace(run))
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Text(
+                  '삼성헬스가 거리 시계열을 제공하지 않아 평균 페이스로 표시됩니다',
+                  style: kMetricLabelStyle,
+                ),
+              ),
           ] else if (run.segments.isEmpty)
             const Padding(
               padding: EdgeInsets.all(20),
@@ -83,6 +91,12 @@ class RunDetailScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  static bool _allSamePace(RunSession run) {
+    final splits = run.splits;
+    if (splits.length < 2) return false;
+    return splits.every((s) => s.paceSecPerKm == splits.first.paceSecPerKm);
   }
 
   Widget _sectionTitle(String t) => Padding(
@@ -191,6 +205,18 @@ class RunDetailScreen extends ConsumerWidget {
                 ),
               ),
               borderData: FlBorderData(show: false),
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipItems: (spots) => spots
+                      .map((s) => LineTooltipItem(
+                            '${s.y.round()} bpm',
+                            const TextStyle(
+                                color: AppColors.danger,
+                                fontWeight: FontWeight.w700),
+                          ))
+                      .toList(),
+                ),
+              ),
               lineBarsData: [
                 LineChartBarData(
                   spots: spots,
@@ -391,11 +417,18 @@ class RunDetailScreen extends ConsumerWidget {
                             fontWeight: FontWeight.w700)),
                   ),
                   SizedBox(
-                    width: 44,
-                    child: Text(
-                      s.avgHr != null ? '${s.avgHr!.round()}♥' : '',
-                      textAlign: TextAlign.end,
-                      style: kMetricLabelStyle,
+                    width: 50,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (s.avgHr != null) ...[
+                          const Icon(Icons.favorite,
+                              size: 11, color: AppColors.danger),
+                          const SizedBox(width: 3),
+                          Text('${s.avgHr!.round()}',
+                              style: kMetricLabelStyle),
+                        ],
+                      ],
                     ),
                   ),
                 ],

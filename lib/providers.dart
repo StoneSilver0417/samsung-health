@@ -45,6 +45,9 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
       final since =
           repo.lastSyncedAt?.subtract(const Duration(days: 1));
       final fetched = await health.fetchRuns(since: since);
+      // 가져오기에서 제외했거나 삭제한 기록은 다시 저장하지 않는다
+      final ignored = repo.getIgnoredIds();
+      fetched.removeWhere((r) => ignored.contains(r.id));
       final added = await repo.upsertAll(fetched);
       await repo.setLastSyncedAt(DateTime.now());
 
@@ -86,10 +89,18 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
     return runs;
   }
 
-  /// 선택된 과거 기록 저장 + 업적 재평가
-  Future<SyncResult> importRuns(List<RunSession> selected) async {
+  /// 선택된 과거 기록 저장 + 업적 재평가.
+  /// [excludedIds]는 사용자가 체크 해제한 기록 — 이후 sync()에서도 영구 제외.
+  Future<SyncResult> importRuns(List<RunSession> selected,
+      {Iterable<String> excludedIds = const []}) async {
     final repo = ref.read(repoProvider);
     final added = await repo.upsertAll(selected);
+    if (excludedIds.isNotEmpty) await repo.addIgnoredIds(excludedIds);
+    // 과거에 제외했던 기록을 다시 선택한 경우 제외 목록에서 해제
+    await repo.removeIgnoredIds(selected.map((r) => r.id));
+    // lastSyncedAt을 현재 시각으로 찍어야 다음 sync()가 이 이전 구간을
+    // 다시 전량 가져와 비선택 기록까지 저장하는 것을 막는다.
+    await repo.setLastSyncedAt(DateTime.now());
     final all = await repo.getAll();
     final newBadges =
         await AchievementEngine(repo).evaluate(all.reversed.toList());
@@ -100,6 +111,7 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
   Future<void> deleteRun(String id) async {
     final repo = ref.read(repoProvider);
     await repo.delete(id);
+    await repo.addIgnoredIds([id]); // 다음 sync에서 되살아나지 않게
     state = AsyncData(await repo.getAll());
   }
 
