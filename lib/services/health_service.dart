@@ -159,7 +159,13 @@ class HealthService {
     for (final point in workouts) {
       final value = point.value;
       if (value is! WorkoutHealthValue) continue;
-      if (!value.workoutActivityType.name.contains('RUNNING')) continue;
+      // 삼성헬스가 달리기/걷기 인터벌 세션을 세션 레벨에서 RUNNING이 아닌
+      // HIGH_INTENSITY_INTERVAL_TRAINING으로 태깅하는 경우가 있어 함께 허용
+      // (23일 인터벌 러닝 프로그램 기록이 이 타입으로 들어옴).
+      final typeName = value.workoutActivityType.name;
+      final isRunLike = typeName.contains('RUNNING') ||
+          typeName == 'HIGH_INTENSITY_INTERVAL_TRAINING';
+      if (!isRunLike) continue;
 
       runs.add(await _buildSession(point, value));
     }
