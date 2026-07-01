@@ -7,6 +7,7 @@ import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ElevationGainedRecord
 import androidx.health.connect.client.records.ExerciseSegment
 import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.PlannedExerciseSessionRecord
 import androidx.health.connect.client.records.Vo2MaxRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
@@ -23,6 +24,7 @@ class MainActivity : FlutterFragmentActivity() {
     private val extraPermissions = setOf(
         HealthPermission.getReadPermission(ElevationGainedRecord::class),
         HealthPermission.getReadPermission(Vo2MaxRecord::class),
+        HealthPermission.getReadPermission(PlannedExerciseSessionRecord::class),
     )
 
     private var pendingPermResult: MethodChannel.Result? = null
@@ -49,6 +51,11 @@ class MainActivity : FlutterFragmentActivity() {
                     result
                 )
                 "getRawSessions" -> readRawSessions(
+                    call.argument<Long>("startMs")!!,
+                    call.argument<Long>("endMs")!!,
+                    result
+                )
+                "getPlannedSessions" -> readPlannedSessions(
                     call.argument<Long>("startMs")!!,
                     call.argument<Long>("endMs")!!,
                     result
@@ -151,6 +158,41 @@ class MainActivity : FlutterFragmentActivity() {
                         "title" to (rec.title ?: ""),
                         "startMs" to rec.startTime.toEpochMilli(),
                         "endMs" to rec.endTime.toEpochMilli(),
+                        "dataOrigin" to rec.metadata.dataOrigin.packageName,
+                    )
+                }
+                result.success(sessions)
+            } catch (e: Exception) {
+                result.error("HC_ERROR", e.message, null)
+            }
+        }
+    }
+
+    /// 진단용: Health Connect Training Plans API의 계획된 운동(PlannedExerciseSessionRecord)을
+    /// 직접 읽는다. 삼성헬스 업데이트로 인터벌 프로그램이 이 타입으로 기록되기 시작했다면
+    /// ExerciseSessionRecord 조회에서는 완전히 누락된다.
+    private fun readPlannedSessions(
+        startMs: Long, endMs: Long, result: MethodChannel.Result
+    ) {
+        lifecycleScope.launch {
+            try {
+                val client = HealthConnectClient.getOrCreate(this@MainActivity)
+                val resp = client.readRecords(
+                    ReadRecordsRequest(
+                        PlannedExerciseSessionRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(
+                            Instant.ofEpochMilli(startMs),
+                            Instant.ofEpochMilli(endMs)
+                        )
+                    )
+                )
+                val sessions = resp.records.map { rec ->
+                    mapOf(
+                        "uuid" to rec.metadata.id,
+                        "title" to (rec.title ?: ""),
+                        "startMs" to rec.startTime.toEpochMilli(),
+                        "endMs" to rec.endTime.toEpochMilli(),
+                        "completionUuid" to (rec.completedExerciseSessionId ?: ""),
                         "dataOrigin" to rec.metadata.dataOrigin.packageName,
                     )
                 }

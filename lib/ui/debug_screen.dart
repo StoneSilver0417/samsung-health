@@ -18,6 +18,7 @@ class DebugScreen extends ConsumerStatefulWidget {
 class _DebugScreenState extends ConsumerState<DebugScreen> {
   List<Map<String, String>>? _viaPackage;
   List<Map<String, String>>? _viaNative;
+  List<Map<String, String>>? _viaPlanned;
   String? _error;
   bool _loading = true;
 
@@ -32,12 +33,15 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
     try {
       await health.configure();
       await health.requestPermissions();
+      await health.requestExtraPermissions();
       final since = DateTime.now().subtract(const Duration(days: 14));
       final viaPackage = await health.debugRawWorkouts(since);
       final viaNative = await health.debugNativeSessions(since);
+      final viaPlanned = await health.debugPlannedSessions(since);
       setState(() {
         _viaPackage = viaPackage;
         _viaNative = viaNative;
+        _viaPlanned = viaPlanned;
         _loading = false;
       });
     } catch (e) {
@@ -68,6 +72,10 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
                     const Divider(thickness: 4),
                     _section('2) 네이티브 HC 직접 호출', _viaNative!,
                         (r) => 'exerciseType=${r['exerciseType']}  title=${r['title']}\n'
+                            '${r['start']} ~ ${r['end']}\n출처: ${r['dataOrigin']}'),
+                    const Divider(thickness: 4),
+                    _section('3) 계획된 운동(Training Plan)', _viaPlanned!,
+                        (r) => 'title=${r['title']}  완료세션=${r['completionUuid']}\n'
                             '${r['start']} ~ ${r['end']}\n출처: ${r['dataOrigin']}'),
                   ],
                 ),

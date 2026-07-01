@@ -175,6 +175,41 @@ class HealthService {
     }
   }
 
+  /// 진단용: Health Connect Training Plans API의 계획된 운동
+  /// (PlannedExerciseSessionRecord)을 직접 읽는다. 삼성헬스가 인터벌
+  /// 프로그램을 이 타입으로 기록하기 시작했다면 ExerciseSessionRecord
+  /// 조회에서는 완전히 누락된다.
+  Future<List<Map<String, String>>> debugPlannedSessions(
+      DateTime since) async {
+    try {
+      final raw = await _extra.invokeMethod<List<dynamic>>(
+        'getPlannedSessions',
+        {
+          'startMs': since.millisecondsSinceEpoch,
+          'endMs': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
+      return (raw ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .map((m) => {
+                'title': '${m['title']}',
+                'start': DateTime.fromMillisecondsSinceEpoch(
+                        (m['startMs'] as num).toInt())
+                    .toIso8601String(),
+                'end': DateTime.fromMillisecondsSinceEpoch(
+                        (m['endMs'] as num).toInt())
+                    .toIso8601String(),
+                'completionUuid': '${m['completionUuid']}',
+                'dataOrigin': '${m['dataOrigin']}',
+              })
+          .toList();
+    } catch (e) {
+      return [
+        {'error': '$e'}
+      ];
+    }
+  }
+
   /// 진단용: 필터링 없이 원본 WORKOUT 레코드의 타입/시각/출처를 그대로 반환.
   /// 동기화 누락 원인 파악(예: 예상치 못한 workoutActivityType) 확인용.
   Future<List<Map<String, String>>> debugRawWorkouts(DateTime since) async {
