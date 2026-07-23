@@ -27,8 +27,12 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
   @override
   Future<List<RunSession>> build() => ref.read(repoProvider).getAll();
 
-  /// Health Connect에서 증분 동기화. 경계 유실 방지를 위해 마지막 동기화 1일 전부터
-  /// 다시 읽는다 (UUID dedupe가 중복을 걸러줌).
+  /// Health Connect에서 동기화. lastSyncedAt는 화면 표시용일 뿐, 조회 범위는
+  /// 항상 최근 30일 전체를 다시 스캔한다 (UUID dedupe가 중복을 걸러줌).
+  /// 삼성헬스 측 동기화 장애로 특정 구간이 비었다가 나중에 채워지는 경우에도
+  /// (예: 2026-07 삼성헬스 업데이트 버그로 운동기록이 HC에 안 써지던 구간)
+  /// lastSyncedAt를 커서로 삼아 그 구간을 건너뛰지 않고 다음 정기 동기화에서
+  /// 자동으로 다시 잡아내도록 하기 위함.
   Future<SyncResult> sync() async {
     final repo = ref.read(repoProvider);
     final health = ref.read(healthServiceProvider);
@@ -42,9 +46,7 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
       // 고도·VO2max 추가 권한 (거부해도 기본 동기화는 진행)
       await health.requestExtraPermissions();
 
-      final since =
-          repo.lastSyncedAt?.subtract(const Duration(days: 1));
-      final fetched = await health.fetchRuns(since: since);
+      final fetched = await health.fetchRuns();
       // 가져오기에서 제외했거나 삭제한 기록은 다시 저장하지 않는다
       final ignored = repo.getIgnoredIds();
       fetched.removeWhere((r) => ignored.contains(r.id));

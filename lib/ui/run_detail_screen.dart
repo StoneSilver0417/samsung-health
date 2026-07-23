@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import '../logic/stats.dart';
 import '../models/run_session.dart';
 import '../providers.dart';
+import '../services/gemini_service.dart';
+import 'settings_screen.dart';
 import 'theme.dart';
 
 class RunDetailScreen extends ConsumerWidget {
@@ -59,6 +61,13 @@ class RunDetailScreen extends ConsumerWidget {
         padding: const EdgeInsets.only(bottom: 32),
         children: [
           _header(run),
+          _AiSummaryCard(
+            run: run,
+            recentRuns: (ref.watch(runsProvider).value ?? const <RunSession>[])
+                .where((r) => r.startTime.isBefore(run.startTime))
+                .take(5)
+                .toList(),
+          ),
           if (run.hrSeries.length >= 2) ...[
             _sectionTitle('심박수'),
             _hrChart(run),
@@ -81,10 +90,12 @@ class RunDetailScreen extends ConsumerWidget {
                 ),
               ),
           ] else if (run.segments.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(20),
+            Padding(
+              padding: const EdgeInsets.all(20),
               child: Text(
-                '구간 데이터 없음 — 삼성헬스가 거리 시계열을 제공하지 않은 세션입니다',
+                run.sourceName == 'manual'
+                    ? '수동으로 추가한 기록입니다 — 구간 데이터가 없습니다'
+                    : '구간 데이터 없음 — 삼성헬스가 거리 시계열을 제공하지 않은 세션입니다',
                 style: kMetricLabelStyle,
               ),
             ),
@@ -435,6 +446,121 @@ class RunDetailScreen extends ConsumerWidget {
               ),
             );
           }).toList(),
+        ),
+      ),
+    );
+  }
+}
+
+/// Gemini API로 러닝 1회를 요약·코칭. 결과는 기기 로컬에 캐시되어 재호출을 피한다.
+class _AiSummaryCard extends ConsumerStatefulWidget {
+  final RunSession run;
+  final List<RunSession> recentRuns;
+
+  const _AiSummaryCard({required this.run, required this.recentRuns});
+
+  @override
+  ConsumerState<_AiSummaryCard> createState() => _AiSummaryCardState();
+}
+
+class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
+  final _service = GeminiService();
+  String? _summary;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _summary = ref.read(repoProvider).getAiSummary(widget.run.id);
+  }
+
+  Future<void> _generate() async {
+    final apiKey = ref.read(repoProvider).getGeminiApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('설정에서 Gemini API 키를 먼저 입력하세요'),
+        action: SnackBarAction(
+          label: '설정으로',
+          onPressed: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen())),
+        ),
+      ));
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final text =
+          await _service.summarizeRun(apiKey, widget.run, widget.recentRuns);
+      await ref.read(repoProvider).saveAiSummary(widget.run.id, text);
+      if (!mounted) return;
+      setState(() => _summary = text);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.auto_awesome, size: 16, color: AppColors.neon),
+                const SizedBox(width: 6),
+                const Text('AI 러닝 요약',
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800)),
+                const Spacer(),
+                if (_loading)
+                  const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                else
+                  TextButton(
+                    onPressed: _generate,
+                    child: Text(_summary == null ? '생성' : '다시 생성'),
+                  ),
+              ],
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(_error!,
+                    style: const TextStyle(
+                        color: AppColors.danger, fontSize: 12)),
+              )
+            else if (_summary != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(_summary!,
+                    style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 13.5,
+                        height: 1.5)),
+              )
+            else if (!_loading)
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('버튼을 눌러 이 러닝에 대한 AI 코멘트를 받아보세요',
+                    style: kMetricLabelStyle),
+              ),
+          ],
         ),
       ),
     );

@@ -4,9 +4,12 @@ import 'package:intl/intl.dart';
 
 import '../logic/stats.dart';
 import '../providers.dart';
+import '../services/update_service.dart';
 import 'debug_screen.dart';
 import 'import_screen.dart';
+import 'manual_add_screen.dart';
 import 'run_detail_screen.dart';
+import 'settings_screen.dart';
 import 'theme.dart';
 import 'widgets/level_card.dart';
 import 'widgets/run_card.dart';
@@ -21,6 +24,15 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _syncing = false;
+  final _updateService = UpdateService();
+
+  @override
+  void initState() {
+    super.initState();
+    // 홈 진입 시 조용히 새 버전 확인 (없거나 실패해도 아무 알림 없음)
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _checkForUpdate(silent: true));
+  }
 
   Future<void> _sync() async {
     if (_syncing) return;
@@ -28,6 +40,89 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final result = await ref.read(runsProvider.notifier).sync();
     setState(() => _syncing = false);
     _showResult(result);
+  }
+
+  Future<void> _checkForUpdate({bool silent = false}) async {
+    final current = await _updateService.currentVersion();
+    final latest = await _updateService.checkLatest();
+    if (!mounted) return;
+    if (latest == null || !UpdateService.isNewer(current, latest.version)) {
+      if (!silent) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('이미 최신 버전입니다')));
+      }
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: Text('새 버전 v${latest.version}'),
+        content: Text(
+          latest.notes.trim().isEmpty
+              ? '새 버전이 있습니다. 지금 업데이트할까요?'
+              : latest.notes,
+          style: kMetricLabelStyle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('나중에'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.neon,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _downloadAndInstall(latest);
+            },
+            child: const Text('업데이트'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadAndInstall(UpdateInfo info) async {
+    final progress = ValueNotifier<double>(0);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        title: const Text('다운로드 중'),
+        content: ValueListenableBuilder<double>(
+          valueListenable: progress,
+          builder: (_, v, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LinearProgressIndicator(
+                value: v > 0 ? v : null,
+                color: AppColors.neon,
+                backgroundColor: Colors.white12,
+              ),
+              const SizedBox(height: 12),
+              Text('${(v * 100).toStringAsFixed(0)}%',
+                  style: kMetricLabelStyle),
+            ],
+          ),
+        ),
+      ),
+    );
+    try {
+      final path = await _updateService.downloadApk(
+          info.apkUrl, (p) => progress.value = p);
+      if (!mounted) return;
+      Navigator.pop(context);
+      await _updateService.install(path);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('업데이트 다운로드 실패: $e')));
+    }
   }
 
   void _showResult(SyncResult result) {
@@ -61,7 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             Text('RunLog'),
             SizedBox(width: 8),
-            Text('v1.5.5',
+            Text('v1.6.0',
                 style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 11,
@@ -91,6 +186,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   context,
                   MaterialPageRoute(builder: (_) => const ImportScreen()),
                 );
+              } else if (v == 'manual') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ManualAddScreen()),
+                );
               } else if (v == 'demo') {
                 _showResult(await notifier.seedDemoData());
               } else if (v == 'clear') {
@@ -100,10 +200,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   context,
                   MaterialPageRoute(builder: (_) => const DebugScreen()),
                 );
+              } else if (v == 'update') {
+                await _checkForUpdate();
+              } else if (v == 'settings') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                );
               }
             },
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'import', child: Text('이전 기록 가져오기')),
+              PopupMenuItem(value: 'manual', child: Text('기록 수동 추가')),
+              PopupMenuItem(value: 'update', child: Text('업데이트 확인')),
+              PopupMenuItem(value: 'settings', child: Text('설정 (AI 요약 등)')),
               PopupMenuItem(value: 'demo', child: Text('데모 데이터 넣기')),
               PopupMenuItem(value: 'clear', child: Text('데이터 전체 삭제')),
               PopupMenuItem(value: 'debug', child: Text('진단: 원본 운동 데이터')),
