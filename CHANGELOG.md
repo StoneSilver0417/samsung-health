@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-07-23 (v1.6.3 — AI 요약 요청이 400 INVALID_ARGUMENT로 실패하는 버그 수정)
+
+### 문제
+- v1.6.2 설치 후 실기기 테스트: "Gemini 요청 실패 (400): ... INVALID_ARGUMENT" 에러로
+  AI 요약 생성 자체가 실패함
+
+### 원인
+- v1.6.1에서 추가한 `generationConfig.thinkingConfig` 필드가 이 API 키로 라우팅되는
+  실제 모델 버전에서는 지원되지 않는 필드였음 — Gemini는 모델 버전에 따라 지원하는
+  generationConfig 필드가 달라서, 미지원 필드를 보내면 요청 자체가 400으로 거부됨
+
+### 수정
+- `lib/services/gemini_service.dart`: `thinkingConfig` 필드를 요청에서 완전히 제거.
+  대신 `maxOutputTokens`을 2048로 넉넉히 올려 사고 과정이 있어도 최종 답변이 잘리지
+  않게 하고, v1.6.2에서 추가한 `thought:true` 파트 필터링으로 사고 초안 노출은 계속 방지
+- 즉, 사고 비활성화를 서버에 요청하는 대신 "사고를 하든 말든 결과만 깨끗하게 걸러서 쓰기"
+  방식으로 전환 — 모델 버전이 바뀌어도 더 안전한 방어 방식
+
 ## 2026-07-23 (v1.6.2 — AI 요약에 모델 사고 과정이 그대로 노출되는 버그 수정)
 
 ### 문제

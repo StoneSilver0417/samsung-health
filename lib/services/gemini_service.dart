@@ -43,12 +43,10 @@ class GeminiService {
                 ]
               }
             ],
-            // thinkingBudget: 0 — 짧은 요약 작업이라 사고 과정이 불필요.
-            // 켜두면 사고 토큰이 maxOutputTokens를 먼저 소모해 답변이 중간에 잘림.
-            'generationConfig': {
-              'maxOutputTokens': 500,
-              'thinkingConfig': {'thinkingBudget': 0},
-            },
+            // thinkingConfig는 모델 버전에 따라 지원 여부가 달라 INVALID_ARGUMENT(400)를
+            // 유발할 수 있어 요청에 넣지 않는다. 대신 사고 과정 몫까지 감안해 예산을 넉넉히
+            // 잡고, 응답 파싱 시 thought:true 파트를 걸러내는 방식으로 대응한다.
+            'generationConfig': {'maxOutputTokens': 2048},
           }),
         )
         .timeout(const Duration(seconds: 20));
