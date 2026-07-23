@@ -43,7 +43,12 @@ class GeminiService {
                 ]
               }
             ],
-            'generationConfig': {'maxOutputTokens': 400},
+            // thinkingBudget: 0 — 짧은 요약 작업이라 사고 과정이 불필요.
+            // 켜두면 사고 토큰이 maxOutputTokens를 먼저 소모해 답변이 중간에 잘림.
+            'generationConfig': {
+              'maxOutputTokens': 500,
+              'thinkingConfig': {'thinkingBudget': 0},
+            },
           }),
         )
         .timeout(const Duration(seconds: 20));

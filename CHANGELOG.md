@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-07-23 (v1.6.1 — AI 요약 문장 잘림 버그 수정)
+
+### 문제
+- v1.6.0에서 AI 러닝 요약을 생성하면 "이번 야간 러닝에서는 5.13km를"처럼 문장이 중간에 끊김
+
+### 원인
+- `gemini-flash-latest`(Gemini 2.5+/3.x Flash 계열)는 기본적으로 "생각(thinking)" 모드가 켜져
+  있고, 이 사고 과정 토큰도 `maxOutputTokens`(당시 400) 예산을 함께 소모함
+- 실제 답변 텍스트가 나오기도 전에 사고 토큰이 예산을 다 써버려 응답이 중간에 끊긴 것
+
+### 수정
+- `lib/services/gemini_service.dart`: `generationConfig`에 `thinkingConfig.thinkingBudget: 0`
+  추가해 사고 모드 비활성화(짧은 요약 작업에는 불필요), `maxOutputTokens`도 400 → 500으로 상향
+- 이전에 잘린 채로 캐시된 요약은 러닝 상세 화면에서 "다시 생성"을 누르면 새로 덮어써짐
+
 ## 2026-07-23 (v1.6.0 — 앱 자동 업데이트 + AI 러닝 요약)
 
 ### GitHub 저장소 공개 전환
