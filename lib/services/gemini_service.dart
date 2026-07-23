@@ -64,7 +64,13 @@ class GeminiService {
     final parts =
         (candidates.first['content'] as Map<String, dynamic>?)?['parts']
             as List?;
-    final text = parts?.map((p) => p['text'] as String? ?? '').join('').trim();
+    // thought:true 파트는 모델의 내부 사고 초안이라 최종 답변이 아님 — 반드시 제외.
+    // thinkingBudget:0을 설정해도 모델에 따라 무시될 수 있어 방어적으로 한 번 더 거른다.
+    final text = parts
+        ?.where((p) => p['thought'] != true)
+        .map((p) => p['text'] as String? ?? '')
+        .join('')
+        .trim();
     if (text == null || text.isEmpty) {
       throw Exception('Gemini 응답이 비어있습니다');
     }
