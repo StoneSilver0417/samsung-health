@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../logic/stats.dart';
 import '../models/run_session.dart';
 import '../providers.dart';
+import 'manual_add_screen.dart';
 import 'run_detail_screen.dart';
 import 'theme.dart';
 import 'widgets/calendar_heatmap.dart';
@@ -23,7 +24,21 @@ class AnalysisScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('분석')),
       body: runs.isEmpty
-          ? const Center(child: Text('데이터가 없습니다', style: kMetricLabelStyle))
+          ? ListView(
+              padding: const EdgeInsets.only(bottom: 32),
+              children: [
+                _sectionTitle('러닝 캘린더'),
+                _heatmapCard(runs, context),
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    '빈 날짜를 눌러 러닝 기록을 추가할 수 있습니다',
+                    textAlign: TextAlign.center,
+                    style: kMetricLabelStyle,
+                  ),
+                ),
+              ],
+            )
           : ListView(
               padding: const EdgeInsets.only(bottom: 32),
               children: [
@@ -128,6 +143,13 @@ class AnalysisScreen extends ConsumerWidget {
                 ),
               );
             }
+          },
+          onEmptyDayTap: (date) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => ManualAddScreen(initialDate: date)),
+            );
           },
         ),
       ),

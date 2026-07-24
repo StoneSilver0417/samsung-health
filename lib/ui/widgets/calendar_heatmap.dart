@@ -8,8 +8,14 @@ import '../theme.dart';
 class CalendarHeatmap extends StatefulWidget {
   final List<RunSession> runs;
   final void Function(List<RunSession> dayRuns)? onDayTap;
+  final void Function(DateTime date)? onEmptyDayTap;
 
-  const CalendarHeatmap({super.key, required this.runs, this.onDayTap});
+  const CalendarHeatmap({
+    super.key,
+    required this.runs,
+    this.onDayTap,
+    this.onEmptyDayTap,
+  });
 
   @override
   State<CalendarHeatmap> createState() => _CalendarHeatmapState();
@@ -131,12 +137,19 @@ class _CalendarHeatmapState extends State<CalendarHeatmap> {
               final km = rs?.fold(0.0, (s, r) => s + r.distanceKm) ?? 0.0;
               final isToday = date == todayDate;
               final hasRun = rs != null;
+              final isFuture = date.isAfter(todayDate);
 
               return Expanded(
                 child: GestureDetector(
-                  onTap: hasRun && widget.onDayTap != null
-                      ? () => widget.onDayTap!(rs)
-                      : null,
+                  onTap: isFuture
+                      ? null
+                      : hasRun
+                          ? widget.onDayTap == null
+                              ? null
+                              : () => widget.onDayTap!(rs)
+                          : widget.onEmptyDayTap == null
+                              ? null
+                              : () => widget.onEmptyDayTap!(date),
                   child: Container(
                     height: 44,
                     margin: const EdgeInsets.all(2),

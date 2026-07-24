@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-07-24 (수동 기록 캘린더 추가·편집 및 입력 보강)
+
+### 신규 기능
+- `CalendarHeatmap`에 `onEmptyDayTap` 콜백을 추가하고 분석 화면에서 빈 날짜를 누르면
+  해당 날짜가 선택된 `ManualAddScreen`으로 이동하도록 연결. 이번 달의 미래 날짜는
+  기록 유무와 관계없이 탭 콜백을 실행하지 않으며, 전체 기록이 0건이어도 캘린더는 표시
+- `ManualAddScreen`에 `initialDate`와 `editing` 모드를 추가. 편집 시 날짜/시간/거리/
+  시·분·초/평균심박/최고심박/칼로리를 기존 값으로 채우고 기존 ID를 유지한 채
+  `importRuns()`로 upsert하여 업적도 다시 평가
+- 최고 심박 입력을 `RunSession.maxHr`에 연결하고, 거리·시간 변경 때마다 평균 페이스를
+  네온 텍스트로 즉시 표시. 평균 페이스는 거리와 시간의 파생값이라 별도 저장하지 않음
+- `RunDetailScreen`은 `runsProvider`를 watch한 목록에서 ID를 직접 찾아 표시하도록 변경.
+  `sourceName == 'manual'`인 기록에만 편집 버튼을 노출하고 삭제 버튼은 기존대로 모두 유지
+
+### 검증
+- Dart formatter의 파서 모드로 변경된 Dart 파일 4개의 구문 검증 통과
+- `git diff --check` 통과, 요구사항별 구조 점검 7개 항목 통과
+- (구현: Codex codex-rescue 서브에이전트, 검증: 로컬 환경) `flutter analyze` 로컬 터미널에서
+  재실행 결과 **이슈 0건 통과** — Codex 관리형 환경의 캐시 권한 제한은 로컬에는 해당 없었음
+- APK 빌드는 아직 안 함 (다음 단계에서 처리)
+
 ## 2026-07-23 (v1.6.3 — AI 요약 요청이 400 INVALID_ARGUMENT로 실패하는 버그 수정)
 
 ### 문제

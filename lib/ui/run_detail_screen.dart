@@ -7,6 +7,7 @@ import '../logic/stats.dart';
 import '../models/run_session.dart';
 import '../providers.dart';
 import '../services/gemini_service.dart';
+import 'manual_add_screen.dart';
 import 'settings_screen.dart';
 import 'theme.dart';
 
@@ -17,7 +18,8 @@ class RunDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final run = ref.read(repoProvider).getById(runId);
+    final runs = ref.watch(runsProvider).value ?? const <RunSession>[];
+    final run = _findRun(runs, runId);
     if (run == null) {
       return Scaffold(
         appBar: AppBar(),
@@ -29,6 +31,19 @@ class RunDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(DateFormat('M월 d일 (E)', 'ko').format(run.startTime)),
         actions: [
+          if (run.sourceName == 'manual')
+            IconButton(
+              tooltip: '기록 수정',
+              icon: const Icon(Icons.edit_outlined, color: AppColors.neon),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ManualAddScreen(editing: run),
+                  ),
+                );
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: AppColors.danger),
             onPressed: () async {
@@ -63,7 +78,7 @@ class RunDetailScreen extends ConsumerWidget {
           _header(run),
           _AiSummaryCard(
             run: run,
-            recentRuns: (ref.watch(runsProvider).value ?? const <RunSession>[])
+            recentRuns: runs
                 .where((r) => r.startTime.isBefore(run.startTime))
                 .take(5)
                 .toList(),
@@ -102,6 +117,13 @@ class RunDetailScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  static RunSession? _findRun(List<RunSession> runs, String id) {
+    for (final run in runs) {
+      if (run.id == id) return run;
+    }
+    return null;
   }
 
   static bool _allSamePace(RunSession run) {
