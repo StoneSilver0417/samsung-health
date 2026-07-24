@@ -156,7 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: [
             Text('RunLog'),
             SizedBox(width: 8),
-            Text('v1.6.6',
+            Text('v1.6.7',
                 style: TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 11,

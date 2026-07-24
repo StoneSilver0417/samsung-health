@@ -1,5 +1,37 @@
 # Changelog
 
+## 2026-07-24 (월간 분석 + AI 목표 추천)
+
+### 월간 통계·분석
+- `MonthlyStats.fromRuns()` 추가: 이번 달·지난달 거리/횟수/시간/거리 가중 평균 페이스,
+  이번 달 최장거리를 월 경계로 집계
+- 이번 달을 포함한 최근 6개월을 월 1일 키의 `(DateTime, double)` 목록으로 생성하고,
+  기록 없는 달도 `0.0`으로 채움. `DateTime(year, month offset, 1)` 정규화로 연말연초 처리
+- 분석 화면의 러닝 캘린더와 주간 거리 사이에 이번 달 요약, 지난달 대비, 최근 6개월
+  월별 거리 막대 차트를 추가. 페이스 비교는 값이 낮아질수록 개선이므로 화살표·색상을 반전
+
+### AI 목표 추천
+- Gemini HTTP 호출과 `thought:true` 제외 응답 파싱을 `_generate()`로 공통화하고,
+  누적·스트릭·최장거리·최고 5km 페이스·월간 거리·최근 4주 거리를 근거로 다음 1~2주
+  구체 목표를 한국어 2~4문장으로 생성하는 `recommendGoal()` 추가
+- `generationConfig`는 기존 `maxOutputTokens: 2048`만 유지하고 400 오류를 일으킨
+  `thinkingConfig`는 추가하지 않음. API 키는 기존 기기 로컬 설정만 사용
+- 분석 화면 최상단에 생성/다시 생성, 로딩, 오류, API 키 설정 이동, 생성 시각을 갖춘
+  목표 추천 카드 추가
+- Hive meta 박스의 `goalRecommendation`, `goalRecommendedAt`에 추천과 생성 시각을
+  캐시하고 전체 데이터 삭제 시 함께 제거
+- Codex 초안은 `FakeRunRepository`(테스트 파일)를 건드리지 않으려고 `GoalRecommendationCache`
+  capability 인터페이스 + 확장 위임을 썼으나, 로컬 검토 결과 기존 `getAiSummary` 패턴과
+  달라 불필요한 추상화로 판단 — 3개 메서드를 `RunRepository`에 직접 선언하고
+  `test/manual_record_achievement_test.dart`의 `FakeRunRepository`에 스텁 3개를 추가하는
+  더 단순한 방식으로 정리함
+
+### 테스트·검증
+- `test/monthly_stats_test.dart` 신규 작성: 이번달/지난달 경계, 최근 6개월·0 채움,
+  거리 가중 평균 페이스·0 거리 가드, 12월↔1월 연말연초 경계 4개 시나리오
+- **로컬 재검증 완료**: `flutter analyze` 이슈 0건, `flutter test` 17개 전부 통과
+  (기존 13개 + 월간 통계 테스트 4개 신규)
+
 ## 2026-07-24 (러닝 캘린더 일요일 시작으로 변경)
 
 ### 변경 사항

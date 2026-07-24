@@ -87,6 +87,15 @@ class FakeRunRepository implements RunRepository {
 
   @override
   Future<void> saveAiSummary(String runId, String summary) async {}
+
+  @override
+  String? getGoalRecommendation() => null;
+
+  @override
+  Future<void> saveGoalRecommendation(String text, DateTime at) async {}
+
+  @override
+  DateTime? getGoalRecommendedAt() => null;
 }
 
 /// providers.dart의 RunsNotifier.importRuns()와 동일한 순서로

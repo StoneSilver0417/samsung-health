@@ -38,6 +38,11 @@ abstract class RunRepository {
   /// 세션별 AI 요약 캐시 (같은 러닝을 다시 열 때 API 재호출 방지)
   String? getAiSummary(String runId);
   Future<void> saveAiSummary(String runId, String summary);
+
+  /// AI 목표 추천 캐시 (분석 탭 재진입 시 API 재호출 방지)
+  String? getGoalRecommendation();
+  Future<void> saveGoalRecommendation(String text, DateTime at);
+  DateTime? getGoalRecommendedAt();
 }
 
 class HiveRunRepository implements RunRepository {
@@ -94,6 +99,8 @@ class HiveRunRepository implements RunRepository {
     final summaryKeys =
         _meta.keys.where((k) => k is String && k.startsWith('aiSummary:'));
     await _meta.deleteAll(summaryKeys);
+    await _meta.delete('goalRecommendation');
+    await _meta.delete('goalRecommendedAt');
   }
 
   @override
@@ -172,4 +179,20 @@ class HiveRunRepository implements RunRepository {
   @override
   Future<void> saveAiSummary(String runId, String summary) =>
       _meta.put('aiSummary:$runId', summary);
+
+  @override
+  String? getGoalRecommendation() => _meta.get('goalRecommendation') as String?;
+
+  @override
+  Future<void> saveGoalRecommendation(String text, DateTime at) =>
+      _meta.putAll({
+        'goalRecommendation': text,
+        'goalRecommendedAt': at.millisecondsSinceEpoch,
+      });
+
+  @override
+  DateTime? getGoalRecommendedAt() {
+    final ms = _meta.get('goalRecommendedAt') as int?;
+    return ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms);
+  }
 }

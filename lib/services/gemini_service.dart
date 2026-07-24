@@ -22,12 +22,29 @@ class GeminiService {
     String apiKey,
     RunSession run,
     List<RunSession> recentRuns,
-  ) async {
+  ) {
+    return _generate(apiKey, _buildPrompt(run, recentRuns));
+  }
+
+  /// 최근 러닝 통계를 바탕으로 다음 1~2주의 구체적인 목표를 제안한다.
+  Future<String> recommendGoal(
+    String apiKey,
+    StatsSummary stats,
+    MonthlyStats monthly,
+    List<RunSession> recentRuns,
+  ) {
+    return _generate(
+      apiKey,
+      _buildGoalPrompt(stats, monthly, recentRuns),
+    );
+  }
+
+  Future<String> _generate(String apiKey, String prompt) async {
     if (apiKey.isEmpty) throw const GeminiNotConfiguredException();
 
-    final prompt = _buildPrompt(run, recentRuns);
     final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent');
+      'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent',
+    );
     final res = await http
         .post(
           uri,
@@ -39,9 +56,9 @@ class GeminiService {
             'contents': [
               {
                 'parts': [
-                  {'text': prompt}
-                ]
-              }
+                  {'text': prompt},
+                ],
+              },
             ],
             // thinkingConfig는 모델 버전에 따라 지원 여부가 달라 INVALID_ARGUMENT(400)를
             // 유발할 수 있어 요청에 넣지 않는다. 대신 사고 과정 몫까지 감안해 예산을 넉넉히
@@ -73,6 +90,54 @@ class GeminiService {
       throw Exception('Gemini 응답이 비어있습니다');
     }
     return text;
+  }
+
+  String _buildGoalPrompt(
+    StatsSummary stats,
+    MonthlyStats monthly,
+    List<RunSession> recentRuns,
+  ) {
+    final currentWeek = StatsSummary.weekStart(DateTime.now());
+    final weekStarts = List.generate(
+      4,
+      (index) => currentWeek.subtract(Duration(days: (3 - index) * 7)),
+    );
+    final weeklyKm = <DateTime, double>{
+      for (final week in weekStarts) week: 0,
+    };
+    for (final run in recentRuns) {
+      final week = StatsSummary.weekStart(run.startTime);
+      if (weeklyKm.containsKey(week)) {
+        weeklyKm[week] = weeklyKm[week]! + run.distanceKm;
+      }
+    }
+
+    final best5k = stats.best5kPaceSec == null
+        ? '기록 없음'
+        : '${fmtPace(stats.best5kPaceSec!)}/km';
+    final recentWeeklyKm = weekStarts
+        .map((week) => '${weeklyKm[week]!.toStringAsFixed(1)}km')
+        .join(' / ');
+
+    final buf = StringBuffer();
+    buf.writeln(
+      '너는 개인 러닝 코치야. 아래 러닝 이력을 보고 다음 1~2주 목표를 '
+      '한국어 2~4문장으로 제안해줘. 무리한 급증 없이 현재 수준에서 약간 '
+      '도전적인 수준으로, 구체적 숫자(주 몇 회, 총 몇 km, 목표 페이스나 거리)를 '
+      '포함해줘. 이모지나 과장 없이 담백하게 써줘.',
+    );
+    buf.writeln();
+    buf.writeln('[러닝 이력]');
+    buf.writeln(
+      '- 누적: ${stats.totalRuns}회, ${stats.totalKm.toStringAsFixed(1)}km',
+    );
+    buf.writeln('- 주 3회 스트릭: ${stats.currentStreakWeeks}주');
+    buf.writeln('- 최장 거리: ${stats.longestRunKm.toStringAsFixed(1)}km');
+    buf.writeln('- 최고 5km 페이스: $best5k');
+    buf.writeln('- 이번 달 거리: ${monthly.thisMonthKm.toStringAsFixed(1)}km');
+    buf.writeln('- 지난달 거리: ${monthly.lastMonthKm.toStringAsFixed(1)}km');
+    buf.writeln('- 최근 4주 주간 거리(오래된 순): $recentWeeklyKm');
+    return buf.toString();
   }
 
   String _buildPrompt(RunSession run, List<RunSession> recentRuns) {

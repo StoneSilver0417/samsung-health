@@ -104,6 +104,102 @@ class StatsSummary {
   }
 }
 
+/// 이번 달·지난달 요약과 최근 6개월 거리 통계.
+class MonthlyStats {
+  final double thisMonthKm;
+  final int thisMonthRuns;
+  final int thisMonthSec;
+  final int? thisMonthAvgPaceSec;
+  final double thisMonthLongestKm;
+  final double lastMonthKm;
+  final int lastMonthRuns;
+  final int lastMonthSec;
+  final int? lastMonthAvgPaceSec;
+  final List<(DateTime, double)> monthlyKm;
+
+  const MonthlyStats({
+    required this.thisMonthKm,
+    required this.thisMonthRuns,
+    required this.thisMonthSec,
+    required this.thisMonthAvgPaceSec,
+    required this.thisMonthLongestKm,
+    required this.lastMonthKm,
+    required this.lastMonthRuns,
+    required this.lastMonthSec,
+    required this.lastMonthAvgPaceSec,
+    required this.monthlyKm,
+  });
+
+  static DateTime monthStart(DateTime d) => DateTime(d.year, d.month, 1);
+
+  factory MonthlyStats.fromRuns(
+    List<RunSession> runs, {
+    DateTime? now,
+  }) {
+    now ??= DateTime.now();
+    final thisMonth = monthStart(now);
+    final lastMonth = DateTime(thisMonth.year, thisMonth.month - 1, 1);
+    final monthKeys = List.generate(
+      6,
+      (index) => DateTime(
+        thisMonth.year,
+        thisMonth.month - 5 + index,
+        1,
+      ),
+    );
+    final monthlyTotals = <DateTime, double>{
+      for (final month in monthKeys) month: 0,
+    };
+
+    double thisMonthKm = 0;
+    double thisMonthLongestKm = 0;
+    double lastMonthKm = 0;
+    int thisMonthRuns = 0;
+    int thisMonthSec = 0;
+    int lastMonthRuns = 0;
+    int lastMonthSec = 0;
+
+    for (final run in runs) {
+      final runMonth = monthStart(run.startTime);
+      if (monthlyTotals.containsKey(runMonth)) {
+        monthlyTotals[runMonth] = monthlyTotals[runMonth]! + run.distanceKm;
+      }
+
+      if (runMonth == thisMonth) {
+        thisMonthKm += run.distanceKm;
+        thisMonthRuns++;
+        thisMonthSec += run.durationSec;
+        if (run.distanceKm > thisMonthLongestKm) {
+          thisMonthLongestKm = run.distanceKm;
+        }
+      } else if (runMonth == lastMonth) {
+        lastMonthKm += run.distanceKm;
+        lastMonthRuns++;
+        lastMonthSec += run.durationSec;
+      }
+    }
+
+    int? averagePace(int totalSec, double totalKm) {
+      return totalKm > 0 ? (totalSec / totalKm).round() : null;
+    }
+
+    return MonthlyStats(
+      thisMonthKm: thisMonthKm,
+      thisMonthRuns: thisMonthRuns,
+      thisMonthSec: thisMonthSec,
+      thisMonthAvgPaceSec: averagePace(thisMonthSec, thisMonthKm),
+      thisMonthLongestKm: thisMonthLongestKm,
+      lastMonthKm: lastMonthKm,
+      lastMonthRuns: lastMonthRuns,
+      lastMonthSec: lastMonthSec,
+      lastMonthAvgPaceSec: averagePace(lastMonthSec, lastMonthKm),
+      monthlyKm: [
+        for (final month in monthKeys) (month, monthlyTotals[month]!),
+      ],
+    );
+  }
+}
+
 /// 심박존 분포 (Z1~Z5). [maxHr] 기준 비율 구간.
 /// Z1 <60%, Z2 60~70%, Z3 70~80%, Z4 80~90%, Z5 90%+
 List<double> hrZoneDistribution(List<HrSample> samples, {double maxHr = 190}) {
