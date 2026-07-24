@@ -42,9 +42,9 @@ class _CalendarHeatmapState extends State<CalendarHeatmap> {
     final today = DateTime.now();
     final todayDate = DateTime(today.year, today.month, today.day);
 
-    // 이 달 1일의 요일 (월=1 ... 일=7) → 앞 빈칸 수
-    final firstWeekday = _month.weekday; // 1=월
-    final leading = firstWeekday - 1;
+    // DateTime.weekday(월=1 ... 일=7)를 일요일 시작 열(일=0 ... 토=6)로 변환
+    final firstWeekday = _month.weekday;
+    final leading = firstWeekday % 7;
     final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
     final totalCells = leading + daysInMonth;
     final rows = (totalCells / 7).ceil();
@@ -62,7 +62,7 @@ class _CalendarHeatmapState extends State<CalendarHeatmap> {
 
     final canGoNext = _month.isBefore(DateTime(today.year, today.month, 1));
 
-    const weekdayLabels = ['월', '화', '수', '목', '금', '토', '일'];
+    const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 
     return Column(
       children: [
@@ -106,7 +106,7 @@ class _CalendarHeatmapState extends State<CalendarHeatmap> {
         const SizedBox(height: 8),
         Row(
           children: List.generate(7, (i) {
-            final isWeekend = i >= 5;
+            final isWeekend = i == 0 || i == 6;
             return Expanded(
               child: Center(
                 child: Text(
@@ -168,7 +168,7 @@ class _CalendarHeatmapState extends State<CalendarHeatmap> {
                           style: TextStyle(
                             color: hasRun
                                 ? Colors.black
-                                : (col >= 5
+                                : (col == 0 || col == 6
                                     ? AppColors.danger.withValues(alpha: 0.7)
                                     : AppColors.textPrimary),
                             fontSize: 13,
