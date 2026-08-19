@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-08-20 (v1.6.8 — Gemini AI 요약 503 대응)
+
+### 원인 판단
+- 실기기 화면의 `503 UNAVAILABLE / This model is currently experiencing high demand`를 확인.
+  할당량 초과인 429가 아니라 Gemini 서버의 일시적 용량 부족 응답이며, API 키나 러닝 데이터
+  형식 오류가 아님
+- `gemini-flash-latest`는 새 릴리스마다 뒤에서 실제 모델이 교체되는 alias라 최근 모델 업데이트와
+  수요 급증의 영향을 받을 수 있음. 운영 앱은 안정 모델 ID를 고정하는 편이 안전함
+
+### 수정
+- `lib/services/gemini_service.dart`: `gemini-3.6-flash` 안정 모델로 고정
+- 429·500·502·503·504 응답은 1초, 2초 간격으로 최대 3회 재시도
+- 503이 반복되면 원시 JSON 대신 `Gemini 서버가 일시적으로 혼잡합니다` 안내를 표시
+- API 키 저장 방식, 응답의 `thought:true` 필터, `maxOutputTokens: 2048`은 유지
+
+### 검증
+- Dart formatter 파싱과 `git diff --check` 통과
+- `flutter analyze`는 관리형 환경에서 90초 동안 SDK 초기화 단계에 멈춰 차단됨
+- 실제 API 호출은 사용자 API 키를 읽거나 노출하지 않고 실기기에서 재확인 필요
+
 ## 2026-07-24 (월간 분석 + AI 목표 추천)
 
 ### 월간 통계·분석

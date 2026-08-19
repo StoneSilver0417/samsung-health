@@ -15,7 +15,10 @@ class GeminiNotConfiguredException implements Exception {
 /// API 키는 사용자가 설정 화면에서 직접 입력해 기기 로컬(Hive)에만 저장한다 —
 /// 코드에 하드코딩하지 않는다 (AGENTS.md 보안 규칙).
 class GeminiService {
-  static const _model = 'gemini-flash-latest';
+  // latest alias는 새 릴리스마다 뒤에서 교체될 수 있어 운영용 모델을 고정한다.
+  static const _model = 'gemini-3.6-flash';
+  static const _maxAttempts = 3;
+  static const _retryableStatusCodes = {429, 500, 502, 503, 504};
 
   /// [run]을 [recentRuns](같은 러닝 제외, 최근 순 최대 5개)와 비교해 코멘트를 생성한다.
   Future<String> summarizeRun(
@@ -45,32 +48,51 @@ class GeminiService {
     final uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent',
     );
-    final res = await http
-        .post(
-          uri,
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey,
-          },
-          body: jsonEncode({
-            'contents': [
-              {
-                'parts': [
-                  {'text': prompt},
-                ],
-              },
-            ],
-            // thinkingConfig는 모델 버전에 따라 지원 여부가 달라 INVALID_ARGUMENT(400)를
-            // 유발할 수 있어 요청에 넣지 않는다. 대신 사고 과정 몫까지 감안해 예산을 넉넉히
-            // 잡고, 응답 파싱 시 thought:true 파트를 걸러내는 방식으로 대응한다.
-            'generationConfig': {'maxOutputTokens': 2048},
-          }),
-        )
-        .timeout(const Duration(seconds: 20));
+    final body = jsonEncode({
+      'contents': [
+        {
+          'parts': [
+            {'text': prompt},
+          ],
+        },
+      ],
+      // thinkingConfig는 모델 버전에 따라 지원 여부가 달라 INVALID_ARGUMENT(400)를
+      // 유발할 수 있어 요청에 넣지 않는다. 대신 사고 과정 몫까지 감안해 예산을 넉넉히
+      // 잡고, 응답 파싱 시 thought:true 파트를 걸러내는 방식으로 대응한다.
+      'generationConfig': {'maxOutputTokens': 2048},
+    });
 
-    if (res.statusCode != 200) {
-      throw Exception('Gemini 요청 실패 (${res.statusCode}): ${res.body}');
+    for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
+      final res = await http
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
+            body: body,
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (res.statusCode == 200) {
+        return _parseResponse(res);
+      }
+
+      final canRetry = _retryableStatusCodes.contains(res.statusCode);
+      if (!canRetry || attempt == _maxAttempts) {
+        if (res.statusCode == 503) {
+          throw Exception('Gemini 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도하세요.');
+        }
+        throw Exception('Gemini 요청 실패 (${res.statusCode}): ${res.body}');
+      }
+
+      // 503/429 등 일시적 장애는 1초, 2초 간격으로 재시도한다.
+      await Future<void>.delayed(Duration(seconds: attempt));
     }
+    throw StateError('Gemini 요청 재시도 흐름이 비정상적으로 종료되었습니다');
+  }
+
+  String _parseResponse(http.Response res) {
     final json = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     final candidates = json['candidates'] as List?;
     if (candidates == null || candidates.isEmpty) {
