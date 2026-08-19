@@ -18,6 +18,7 @@
 ### 검증
 - Dart formatter 파싱과 `git diff --check` 통과
 - `flutter analyze`는 관리형 환경에서 90초 동안 SDK 초기화 단계에 멈춰 차단됨
+- v1.6.8 release APK를 빌드해 GitHub Release `v1.6.8`에 업로드함
 - 실제 API 호출은 사용자 API 키를 읽거나 노출하지 않고 실기기에서 재확인 필요
 
 ## 2026-07-24 (월간 분석 + AI 목표 추천)
