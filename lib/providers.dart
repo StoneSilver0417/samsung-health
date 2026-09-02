@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/run_repository.dart';
+import 'data/mutation_queue.dart';
 import 'logic/achievement_engine.dart';
 import 'logic/stats.dart';
 import 'models/achievement.dart';
@@ -24,6 +25,8 @@ class SyncResult {
 }
 
 class RunsNotifier extends AsyncNotifier<List<RunSession>> {
+  final _mutations = MutationQueue();
+
   @override
   Future<List<RunSession>> build() => ref.read(repoProvider).getAll();
 
@@ -33,41 +36,41 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
   /// (예: 2026-07 삼성헬스 업데이트 버그로 운동기록이 HC에 안 써지던 구간)
   /// lastSyncedAt를 커서로 삼아 그 구간을 건너뛰지 않고 다음 정기 동기화에서
   /// 자동으로 다시 잡아내도록 하기 위함.
-  Future<SyncResult> sync() async {
-    final repo = ref.read(repoProvider);
-    final health = ref.read(healthServiceProvider);
-    try {
-      await health.configure();
-      final granted = await health.requestPermissions();
-      if (!granted) {
-        return const SyncResult(error: 'Health Connect 권한이 거부되었습니다');
+  Future<SyncResult> sync() => _mutations.run(() async {
+      final repo = ref.read(repoProvider);
+      final health = ref.read(healthServiceProvider);
+      try {
+        await health.configure();
+        final granted = await health.requestPermissions();
+        if (!granted) {
+          return const SyncResult(error: 'Health Connect 권한이 거부되었습니다');
+        }
+
+        // 고도·VO2max 추가 권한 (거부해도 기본 동기화는 진행)
+        await health.requestExtraPermissions();
+
+        final fetched = await health.fetchRuns();
+        // 가져오기에서 제외했거나 삭제한 기록은 다시 저장하지 않는다
+        final ignored = repo.getIgnoredIds();
+        fetched.removeWhere((r) => ignored.contains(r.id));
+        final added = await repo.upsertAll(fetched);
+        await repo.setLastSyncedAt(DateTime.now());
+
+        // VO2max 추세 (최근 90일)
+        final vo2 = await health.fetchVo2Series(
+            DateTime.now().subtract(const Duration(days: 90)), DateTime.now());
+        if (vo2.isNotEmpty) await repo.saveVo2Series(vo2);
+
+        final all = await repo.getAll();
+        final newBadges =
+            await AchievementEngine(repo).evaluate(all.reversed.toList());
+
+        state = AsyncData(all);
+        return SyncResult(addedCount: added.length, newBadges: newBadges);
+      } catch (e) {
+        return SyncResult(error: '동기화 실패: $e');
       }
-
-      // 고도·VO2max 추가 권한 (거부해도 기본 동기화는 진행)
-      await health.requestExtraPermissions();
-
-      final fetched = await health.fetchRuns();
-      // 가져오기에서 제외했거나 삭제한 기록은 다시 저장하지 않는다
-      final ignored = repo.getIgnoredIds();
-      fetched.removeWhere((r) => ignored.contains(r.id));
-      final added = await repo.upsertAll(fetched);
-      await repo.setLastSyncedAt(DateTime.now());
-
-      // VO2max 추세 (최근 90일)
-      final vo2 = await health.fetchVo2Series(
-          DateTime.now().subtract(const Duration(days: 90)), DateTime.now());
-      if (vo2.isNotEmpty) await repo.saveVo2Series(vo2);
-
-      final all = await repo.getAll();
-      final newBadges =
-          await AchievementEngine(repo).evaluate(all.reversed.toList());
-
-      state = AsyncData(all);
-      return SyncResult(addedCount: added.length, newBadges: newBadges);
-    } catch (e) {
-      return SyncResult(error: '동기화 실패: $e');
-    }
-  }
+    });
 
   /// 과거 기록 가져오기: [from]부터의 러닝 후보 조회 (저장하지 않음).
   /// 30일보다 먼 과거는 히스토리 권한을 추가로 요청한다.
@@ -94,45 +97,46 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
   /// 선택된 과거 기록 저장 + 업적 재평가.
   /// [excludedIds]는 사용자가 체크 해제한 기록 — 이후 sync()에서도 영구 제외.
   Future<SyncResult> importRuns(List<RunSession> selected,
-      {Iterable<String> excludedIds = const []}) async {
-    final repo = ref.read(repoProvider);
-    final added = await repo.upsertAll(selected);
-    if (excludedIds.isNotEmpty) await repo.addIgnoredIds(excludedIds);
-    // 과거에 제외했던 기록을 다시 선택한 경우 제외 목록에서 해제
-    await repo.removeIgnoredIds(selected.map((r) => r.id));
-    // lastSyncedAt을 현재 시각으로 찍어야 다음 sync()가 이 이전 구간을
-    // 다시 전량 가져와 비선택 기록까지 저장하는 것을 막는다.
-    await repo.setLastSyncedAt(DateTime.now());
-    final all = await repo.getAll();
-    final newBadges =
-        await AchievementEngine(repo).evaluate(all.reversed.toList());
-    state = AsyncData(all);
-    return SyncResult(addedCount: added.length, newBadges: newBadges);
-  }
+          {Iterable<String> excludedIds = const []}) =>
+      _mutations.run(() async {
+        final repo = ref.read(repoProvider);
+        final added = await repo.upsertAll(selected);
+        if (excludedIds.isNotEmpty) await repo.addIgnoredIds(excludedIds);
+        // 과거에 제외했던 기록을 다시 선택한 경우 제외 목록에서 해제
+        await repo.removeIgnoredIds(selected.map((r) => r.id));
+        // lastSyncedAt을 현재 시각으로 찍어야 다음 sync()가 이 이전 구간을
+        // 다시 전량 가져와 비선택 기록까지 저장하는 것을 막는다.
+        await repo.setLastSyncedAt(DateTime.now());
+        final all = await repo.getAll();
+        final newBadges =
+            await AchievementEngine(repo).evaluate(all.reversed.toList());
+        state = AsyncData(all);
+        return SyncResult(addedCount: added.length, newBadges: newBadges);
+      });
 
-  Future<void> deleteRun(String id) async {
-    final repo = ref.read(repoProvider);
-    await repo.delete(id);
-    await repo.addIgnoredIds([id]); // 다음 sync에서 되살아나지 않게
-    state = AsyncData(await repo.getAll());
-  }
+  Future<void> deleteRun(String id) => _mutations.run(() async {
+        final repo = ref.read(repoProvider);
+        await repo.delete(id);
+        await repo.addIgnoredIds([id]); // 다음 sync에서 되살아나지 않게
+        state = AsyncData(await repo.getAll());
+      });
 
   /// PC/에뮬레이터 등 Health Connect 없는 환경에서 UI 확인용 (PRD 검증 보조)
-  Future<SyncResult> seedDemoData() async {
-    final repo = ref.read(repoProvider);
-    final added = await repo.upsertAll(_generateDemoRuns());
-    final all = await repo.getAll();
-    final newBadges =
-        await AchievementEngine(repo).evaluate(all.reversed.toList());
-    state = AsyncData(all);
-    return SyncResult(addedCount: added.length, newBadges: newBadges);
-  }
+  Future<SyncResult> seedDemoData() => _mutations.run(() async {
+        final repo = ref.read(repoProvider);
+        final added = await repo.upsertAll(_generateDemoRuns());
+        final all = await repo.getAll();
+        final newBadges =
+            await AchievementEngine(repo).evaluate(all.reversed.toList());
+        state = AsyncData(all);
+        return SyncResult(addedCount: added.length, newBadges: newBadges);
+      });
 
-  Future<void> clearAll() async {
-    final repo = ref.read(repoProvider);
-    await repo.clear();
-    state = const AsyncData([]);
-  }
+  Future<void> clearAll() => _mutations.run(() async {
+        final repo = ref.read(repoProvider);
+        await repo.clear();
+        state = const AsyncData([]);
+      });
 }
 
 final runsProvider =
