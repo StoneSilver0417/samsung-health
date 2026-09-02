@@ -63,7 +63,7 @@ class UpdateService {
               'User-Agent': 'RunLog-Update-Checker',
             },
           )
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 15));
       if (res.statusCode != 200) return null;
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       final tag =

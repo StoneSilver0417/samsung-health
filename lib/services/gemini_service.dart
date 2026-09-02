@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -72,30 +74,44 @@ class GeminiService {
     });
 
     for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
-      final res = await http
-          .post(
-            uri,
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': apiKey,
-            },
-            body: body,
-          )
-          .timeout(const Duration(seconds: 20));
+      try {
+        final res = await http
+            .post(
+              uri,
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey,
+              },
+              body: body,
+            )
+            .timeout(const Duration(seconds: 60));
 
-      if (res.statusCode == 200) {
-        return _parseResponse(res);
-      }
-
-      final canRetry = _retryableStatusCodes.contains(res.statusCode);
-      if (!canRetry || attempt == _maxAttempts) {
-        if (res.statusCode == 503) {
-          throw Exception('Gemini 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도하세요.');
+        if (res.statusCode == 200) {
+          return _parseResponse(res);
         }
-        throw Exception('Gemini 요청 실패 (${res.statusCode}): ${res.body}');
+
+        final canRetry = _retryableStatusCodes.contains(res.statusCode);
+        if (!canRetry || attempt == _maxAttempts) {
+          if (res.statusCode == 503) {
+            throw Exception('Gemini 서버가 일시적으로 혼잡합니다. 잠시 후 다시 시도하세요.');
+          }
+          throw Exception('Gemini 요청 실패 (${res.statusCode}): ${res.body}');
+        }
+      } on TimeoutException {
+        if (attempt == _maxAttempts) {
+          throw Exception('Gemini 응답 시간 초과 (60초). 잠시 후 다시 시도해주세요.');
+        }
+      } on SocketException catch (e) {
+        if (attempt == _maxAttempts) {
+          throw Exception('네트워크 연결 오류: ${e.message}');
+        }
+      } on http.ClientException catch (e) {
+        if (attempt == _maxAttempts) {
+          throw Exception('네트워크 요청 실패: ${e.message}');
+        }
       }
 
-      // 503/429 등 일시적 장애는 1초, 2초 간격으로 재시도한다.
+      // 503/429 또는 일시적 네트워크 오류 시 1초, 2초 간격으로 재시도한다.
       await Future<void>.delayed(Duration(seconds: attempt));
     }
     throw StateError('Gemini 요청 재시도 흐름이 비정상적으로 종료되었습니다');
