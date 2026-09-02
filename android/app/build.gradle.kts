@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -31,11 +33,53 @@ android {
         versionName = flutter.versionName
     }
 
+    val signingProperties = Properties()
+    val signingPropertiesFile = rootProject.file("key.properties")
+    if (signingPropertiesFile.exists()) {
+        signingPropertiesFile.inputStream().use(signingProperties::load)
+    }
+    val storeFilePath = signingProperties.getProperty("storeFile")
+    val storePassword = signingProperties.getProperty("storePassword")
+    val keyAlias = signingProperties.getProperty("keyAlias")
+    val keyPassword = signingProperties.getProperty("keyPassword")
+    val releaseSigningConfigured = listOf(
+        storeFilePath,
+        storePassword,
+        keyAlias,
+        keyPassword,
+    ).all { !it.isNullOrBlank() }
+
+    if (releaseSigningConfigured) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(storeFilePath!!)
+                this.storePassword = storePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                // Never produce a distributable release signed by the debug key.
+                signingConfig = null
+            }
+        }
+    }
+
+    if (!releaseSigningConfigured) {
+        tasks.configureEach {
+            if (name.contains("Release", ignoreCase = true)) {
+                doFirst {
+                    throw GradleException(
+                        "Release signing is not configured. Add android/key.properties."
+                    )
+                }
+            }
         }
     }
 }
