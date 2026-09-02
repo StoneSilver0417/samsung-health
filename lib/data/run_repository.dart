@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:math';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/achievement.dart';
@@ -31,7 +33,7 @@ abstract class RunRepository {
   List<EarnedBadge> getEarnedBadges();
   Future<void> saveEarnedBadges(List<EarnedBadge> badges);
 
-  /// Gemini API 키 (기기 로컬 저장만, git에는 절대 포함되지 않음)
+  /// Gemini API 키 (Android Keystore 기반 secure storage에 저장)
   String? getGeminiApiKey();
   Future<void> setGeminiApiKey(String? key);
 
@@ -46,20 +48,111 @@ abstract class RunRepository {
 }
 
 class HiveRunRepository implements RunRepository {
-  static const _runsBox = 'runs';
-  static const _metaBox = 'meta';
-  static const _badgesBox = 'badges';
+  static const _runsBox = 'runs.v2';
+  static const _metaBox = 'meta.v2';
+  static const _badgesBox = 'badges.v2';
+  static const _legacyRunsBox = 'runs';
+  static const _legacyMetaBox = 'meta';
+  static const _legacyBadgesBox = 'badges';
+  static const _hiveKeyStorageKey = 'runlog.hive.encryption-key';
+  static const _apiKeyStorageKey = 'runlog.gemini.api-key';
+  static const _migrationStorageKey = 'runlog.hive.migration-v2';
 
   late final Box<String> _runs;
   late final Box _meta;
   late final Box<String> _badges;
+  late final FlutterSecureStorage _secureStorage;
+  String? _geminiApiKey;
+
+  static List<int> decodeEncryptionKey(String encoded) {
+    late final List<int> key;
+    try {
+      key = base64Url.decode(encoded);
+    } on FormatException {
+      throw StateError('저장소 암호화 키 형식이 올바르지 않습니다');
+    }
+    if (key.length != 32) {
+      throw StateError('저장소 암호화 키 길이가 올바르지 않습니다');
+    }
+    return key;
+  }
+
+  static String _newEncryptionKey() => base64UrlEncode(
+        List<int>.generate(32, (_) => Random.secure().nextInt(256)),
+      );
 
   static Future<HiveRunRepository> open() async {
     await Hive.initFlutter();
+    final secureStorage = FlutterSecureStorage();
+    final storedKey = await secureStorage.read(key: _hiveKeyStorageKey);
+    final encodedKey = storedKey ?? _newEncryptionKey();
+    final encryptionKey = decodeEncryptionKey(encodedKey);
+    if (storedKey == null) {
+      await secureStorage.write(key: _hiveKeyStorageKey, value: encodedKey);
+      if (await secureStorage.read(key: _hiveKeyStorageKey) != encodedKey) {
+        throw StateError('저장소 암호화 키를 안전하게 저장하지 못했습니다');
+      }
+    }
+
     final repo = HiveRunRepository();
-    repo._runs = await Hive.openBox<String>(_runsBox);
-    repo._meta = await Hive.openBox(_metaBox);
-    repo._badges = await Hive.openBox<String>(_badgesBox);
+    repo._secureStorage = secureStorage;
+    final cipher = HiveAesCipher(encryptionKey);
+    repo._runs = await Hive.openBox<String>(
+      _runsBox,
+      encryptionCipher: cipher,
+    );
+    repo._meta = await Hive.openBox(_metaBox, encryptionCipher: cipher);
+    repo._badges = await Hive.openBox<String>(
+      _badgesBox,
+      encryptionCipher: cipher,
+    );
+
+    if (await secureStorage.read(key: _migrationStorageKey) != '1') {
+      final legacyRuns = await Hive.openBox<String>(_legacyRunsBox);
+      final legacyMeta = await Hive.openBox(_legacyMetaBox);
+      final legacyBadges = await Hive.openBox<String>(_legacyBadgesBox);
+      final legacyApiKey = legacyMeta.get('geminiApiKey');
+      try {
+        for (final key in legacyRuns.keys) {
+          if (key is! String) continue;
+          final value = legacyRuns.get(key);
+          if (value != null) await repo._runs.put(key, value);
+        }
+        for (final key in legacyMeta.keys) {
+          if (key == 'geminiApiKey') continue;
+          final value = legacyMeta.get(key);
+          if (value != null) await repo._meta.put(key, value);
+        }
+        for (final key in legacyBadges.keys) {
+          if (key is! String) continue;
+          final value = legacyBadges.get(key);
+          if (value != null) await repo._badges.put(key, value);
+        }
+
+        final secureApiKey = await secureStorage.read(key: _apiKeyStorageKey);
+        if (secureApiKey == null &&
+            legacyApiKey is String &&
+            legacyApiKey.isNotEmpty) {
+          await secureStorage.write(
+            key: _apiKeyStorageKey,
+            value: legacyApiKey,
+          );
+          if (await secureStorage.read(key: _apiKeyStorageKey) != legacyApiKey) {
+            throw StateError('Gemini API 키를 안전하게 마이그레이션하지 못했습니다');
+          }
+        }
+      } finally {
+        await legacyRuns.close();
+        await legacyMeta.close();
+        await legacyBadges.close();
+      }
+      await Hive.deleteBoxFromDisk(_legacyRunsBox);
+      await Hive.deleteBoxFromDisk(_legacyMetaBox);
+      await Hive.deleteBoxFromDisk(_legacyBadgesBox);
+      await secureStorage.write(key: _migrationStorageKey, value: '1');
+    }
+
+    repo._geminiApiKey = await secureStorage.read(key: _apiKeyStorageKey);
     return repo;
   }
 
@@ -165,12 +258,22 @@ class HiveRunRepository implements RunRepository {
   }
 
   @override
-  String? getGeminiApiKey() => _meta.get('geminiApiKey') as String?;
+  String? getGeminiApiKey() => _geminiApiKey;
 
   @override
-  Future<void> setGeminiApiKey(String? key) => (key == null || key.isEmpty)
-      ? _meta.delete('geminiApiKey')
-      : _meta.put('geminiApiKey', key);
+  Future<void> setGeminiApiKey(String? key) async {
+    final normalized = key?.trim();
+    if (normalized == null || normalized.isEmpty) {
+      await _secureStorage.delete(key: _apiKeyStorageKey);
+      _geminiApiKey = null;
+      return;
+    }
+    await _secureStorage.write(
+      key: _apiKeyStorageKey,
+      value: normalized,
+    );
+    _geminiApiKey = normalized;
+  }
 
   @override
   String? getAiSummary(String runId) =>
