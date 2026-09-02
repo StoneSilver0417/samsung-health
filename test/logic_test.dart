@@ -45,6 +45,15 @@ void main() {
     });
   });
 
+  group('Health Connect source filtering', () {
+    test('only data from the workout source is accepted', () {
+      expect(HealthService.sameSource('com.samsung.health',
+          'com.samsung.health'), isTrue);
+      expect(HealthService.sameSource('com.google.fit',
+          'com.samsung.health'), isFalse);
+    });
+  });
+
   group('distanceBetween (세그먼트 거리 배분)', () {
     test('경계에 걸친 델타는 시간 비례로 나눈다', () {
       final t0 = DateTime(2026, 6, 1, 21);

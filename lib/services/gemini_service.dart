@@ -42,6 +42,15 @@ class GeminiService {
     );
   }
 
+  static int? averagePaceSecPerKm(List<RunSession> runs) {
+    final validPaces = runs
+        .map((r) => r.avgPaceSecPerKm)
+        .where((pace) => pace > 0)
+        .toList();
+    if (validPaces.isEmpty) return null;
+    return (validPaces.reduce((a, b) => a + b) / validPaces.length).round();
+  }
+
   Future<String> _generate(String apiKey, String prompt) async {
     if (apiKey.isEmpty) throw const GeminiNotConfiguredException();
 
@@ -180,18 +189,16 @@ class GeminiService {
     buf.writeln('- 시각: ${run.startTime.hour}시 (${hour >= 21 || hour < 4 ? '야간' : hour < 8 ? '새벽' : '주간'} 러닝)');
 
     if (recentRuns.isNotEmpty) {
-      final avgPace = recentRuns
-              .where((r) => r.avgPaceSecPerKm > 0)
-              .map((r) => r.avgPaceSecPerKm)
-              .fold<int>(0, (a, b) => a + b) /
-          recentRuns.length;
       final avgKm =
           recentRuns.fold<double>(0, (a, r) => a + r.distanceKm) /
               recentRuns.length;
       buf.writeln();
       buf.writeln('[최근 ${recentRuns.length}회 평균 — 비교 참고용]');
       buf.writeln('- 평균 거리: ${avgKm.toStringAsFixed(2)}km');
-      buf.writeln('- 평균 페이스: ${fmtPace(avgPace.round())}/km');
+      final avgPace = averagePaceSecPerKm(recentRuns);
+      if (avgPace != null) {
+        buf.writeln('- 평균 페이스: ${fmtPace(avgPace)}/km');
+      }
     }
     return buf.toString();
   }
