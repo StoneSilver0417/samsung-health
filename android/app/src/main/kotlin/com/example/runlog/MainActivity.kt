@@ -17,6 +17,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.launch
 import java.time.Instant
+import kotlin.reflect.KClass
 
 /// health 패키지가 노출하지 않는 Health Connect 데이터(운동 세그먼트,
 /// 상승고도, VO2max)를 직접 읽는 보조 채널.
@@ -63,6 +64,7 @@ class MainActivity : FlutterFragmentActivity() {
                 "getElevationGained" -> readElevation(
                     call.argument<Long>("startMs")!!,
                     call.argument<Long>("endMs")!!,
+                    call.argument<String>("sourceId") ?: "",
                     result
                 )
                 "getVo2MaxSeries" -> readVo2Max(
@@ -93,22 +95,44 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    private suspend fun <T : androidx.health.connect.client.records.Record> readAllRecords(
+        client: HealthConnectClient,
+        recordType: KClass<T>,
+        startMs: Long,
+        endMs: Long,
+    ): List<T> {
+        val records = mutableListOf<T>()
+        var pageToken: String? = null
+        do {
+            val response = client.readRecords(
+                ReadRecordsRequest(
+                    recordType,
+                    timeRangeFilter = TimeRangeFilter.between(
+                        Instant.ofEpochMilli(startMs),
+                        Instant.ofEpochMilli(endMs)
+                    ),
+                    pageToken = pageToken,
+                )
+            )
+            records.addAll(response.records)
+            pageToken = response.pageToken
+        } while (pageToken != null)
+        return records
+    }
+
     private fun readSessionDetails(
         startMs: Long, endMs: Long, result: MethodChannel.Result
     ) {
         lifecycleScope.launch {
             try {
                 val client = HealthConnectClient.getOrCreate(this@MainActivity)
-                val resp = client.readRecords(
-                    ReadRecordsRequest(
-                        ExerciseSessionRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(
-                            Instant.ofEpochMilli(startMs),
-                            Instant.ofEpochMilli(endMs)
-                        )
-                    )
+                val records = readAllRecords(
+                    client,
+                    ExerciseSessionRecord::class,
+                    startMs,
+                    endMs,
                 )
-                val sessions = resp.records.map { rec ->
+                val sessions = records.map { rec ->
                     mapOf(
                         "uuid" to rec.metadata.id,
                         "segments" to rec.segments.map { seg ->
@@ -142,16 +166,13 @@ class MainActivity : FlutterFragmentActivity() {
         lifecycleScope.launch {
             try {
                 val client = HealthConnectClient.getOrCreate(this@MainActivity)
-                val resp = client.readRecords(
-                    ReadRecordsRequest(
-                        ExerciseSessionRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(
-                            Instant.ofEpochMilli(startMs),
-                            Instant.ofEpochMilli(endMs)
-                        )
-                    )
+                val records = readAllRecords(
+                    client,
+                    ExerciseSessionRecord::class,
+                    startMs,
+                    endMs,
                 )
-                val sessions = resp.records.map { rec ->
+                val sessions = records.map { rec ->
                     mapOf(
                         "uuid" to rec.metadata.id,
                         "exerciseType" to rec.exerciseType,
@@ -177,16 +198,13 @@ class MainActivity : FlutterFragmentActivity() {
         lifecycleScope.launch {
             try {
                 val client = HealthConnectClient.getOrCreate(this@MainActivity)
-                val resp = client.readRecords(
-                    ReadRecordsRequest(
-                        PlannedExerciseSessionRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(
-                            Instant.ofEpochMilli(startMs),
-                            Instant.ofEpochMilli(endMs)
-                        )
-                    )
+                val records = readAllRecords(
+                    client,
+                    PlannedExerciseSessionRecord::class,
+                    startMs,
+                    endMs,
                 )
-                val sessions = resp.records.map { rec ->
+                val sessions = records.map { rec ->
                     mapOf(
                         "uuid" to rec.metadata.id,
                         "title" to (rec.title ?: ""),
@@ -204,21 +222,21 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     private fun readElevation(
-        startMs: Long, endMs: Long, result: MethodChannel.Result
+        startMs: Long, endMs: Long, sourceId: String, result: MethodChannel.Result
     ) {
         lifecycleScope.launch {
             try {
                 val client = HealthConnectClient.getOrCreate(this@MainActivity)
-                val resp = client.readRecords(
-                    ReadRecordsRequest(
-                        ElevationGainedRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(
-                            Instant.ofEpochMilli(startMs),
-                            Instant.ofEpochMilli(endMs)
-                        )
-                    )
-                )
-                result.success(resp.records.sumOf { it.elevation.inMeters })
+                val records = readAllRecords(
+                    client,
+                    ElevationGainedRecord::class,
+                    startMs,
+                    endMs,
+                ).filter {
+                    sourceId.isBlank() ||
+                        it.metadata.dataOrigin.packageName == sourceId
+                }
+                result.success(records.sumOf { it.elevation.inMeters })
             } catch (e: Exception) {
                 result.error("HC_ERROR", e.message, null)
             }
@@ -231,16 +249,13 @@ class MainActivity : FlutterFragmentActivity() {
         lifecycleScope.launch {
             try {
                 val client = HealthConnectClient.getOrCreate(this@MainActivity)
-                val resp = client.readRecords(
-                    ReadRecordsRequest(
-                        Vo2MaxRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(
-                            Instant.ofEpochMilli(startMs),
-                            Instant.ofEpochMilli(endMs)
-                        )
-                    )
+                val records = readAllRecords(
+                    client,
+                    Vo2MaxRecord::class,
+                    startMs,
+                    endMs,
                 )
-                result.success(resp.records.map {
+                result.success(records.map {
                     mapOf(
                         "timeMs" to it.time.toEpochMilli(),
                         "value" to it.vo2MillilitersPerMinuteKilogram,

@@ -103,13 +103,15 @@ class HealthService {
     }
   }
 
-  Future<double> _fetchElevation(DateTime start, DateTime end) async {
+  Future<double> _fetchElevation(
+      DateTime start, DateTime end, String sourceId) async {
     try {
       return await _extra.invokeMethod<double>(
             'getElevationGained',
             {
               'startMs': start.millisecondsSinceEpoch,
               'endMs': end.millisecondsSinceEpoch,
+              'sourceId': sourceId,
             },
           ) ??
           0;
@@ -274,7 +276,9 @@ class HealthService {
       endTime: end,
     );
     final hrSamples = hrPoints
-        .where((p) => p.value is NumericHealthValue)
+        .where((p) =>
+            sameSource(p.sourceId, point.sourceId) &&
+            p.value is NumericHealthValue)
         .map((p) => HrSample(
               time: p.dateFrom,
               bpm: (p.value as NumericHealthValue).numericValue.toDouble(),
@@ -289,7 +293,9 @@ class HealthService {
       endTime: end,
     );
     final deltas = distPoints
-        .where((p) => p.value is NumericHealthValue)
+        .where((p) =>
+            sameSource(p.sourceId, point.sourceId) &&
+            p.value is NumericHealthValue)
         .map((p) => DistDelta(
               from: p.dateFrom,
               to: p.dateTo,
@@ -313,7 +319,9 @@ class HealthService {
         endTime: end,
       );
       final calSum = calPoints
-          .where((p) => p.value is NumericHealthValue)
+          .where((p) =>
+              sameSource(p.sourceId, point.sourceId) &&
+              p.value is NumericHealthValue)
           .fold<double>(
               0,
               (sum, p) =>
@@ -322,12 +330,14 @@ class HealthService {
     }
 
     // 케이던스(걸음) — 삼성헬스가 미제공하면 null
-    final steps = (await _sumNumeric(HealthDataType.STEPS, start, end)).round();
+    final steps = (await _sumNumeric(
+            HealthDataType.STEPS, start, end, point.sourceId))
+        .round();
 
     // 인터벌 세그먼트(운동/회복)·상승고도 — 네이티브 채널
     final segments =
         await _fetchSegments(point.uuid, start, end, deltas, hrSamples);
-    final elevation = await _fetchElevation(start, end);
+    final elevation = await _fetchElevation(start, end, point.sourceId);
 
     final avgHr = hrSamples.isEmpty
         ? null
@@ -354,16 +364,20 @@ class HealthService {
     );
   }
 
-  Future<double> _sumNumeric(
-      HealthDataType type, DateTime start, DateTime end) async {
+  Future<double> _sumNumeric(HealthDataType type, DateTime start, DateTime end,
+      String sourceId) async {
     try {
       final points = await _health.getHealthDataFromTypes(
         types: [type],
         startTime: start,
         endTime: end,
       );
-      return points.where((p) => p.value is NumericHealthValue).fold<double>(
-          0, (sum, p) => sum + (p.value as NumericHealthValue).numericValue);
+      return points
+          .where((p) =>
+              sameSource(p.sourceId, sourceId) &&
+              p.value is NumericHealthValue)
+          .fold<double>(
+              0, (sum, p) => sum + (p.value as NumericHealthValue).numericValue);
     } catch (_) {
       return 0; // 타입 미지원 기기에서도 동기화는 계속
     }
@@ -417,6 +431,9 @@ class HealthService {
     }
     return splits;
   }
+
+  static bool sameSource(String dataSourceId, String workoutSourceId) =>
+      dataSourceId == workoutSourceId;
 
   static double? _avgHrBetween(
       List<HrSample> samples, DateTime from, DateTime to) {
