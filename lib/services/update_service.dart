@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:convert/convert.dart';
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -10,8 +12,13 @@ class UpdateInfo {
   final String version;
   final String apkUrl;
   final String notes;
-  const UpdateInfo(
-      {required this.version, required this.apkUrl, required this.notes});
+  final String sha256;
+  const UpdateInfo({
+    required this.version,
+    required this.apkUrl,
+    required this.notes,
+    required this.sha256,
+  });
 }
 
 /// GitHub Release 기반 앱 업데이트 확인·다운로드·설치.
@@ -20,6 +27,25 @@ class UpdateInfo {
 /// APK 에셋을 첨부한 GitHub Release 생성이 필수 — 이게 없으면 이 기능은 동작 안 함.
 class UpdateService {
   static const _repo = 'StoneSilver0417/samsung-health';
+  static const _apkAssetName = 'app-release.apk';
+  static const _maxApkBytes = 100 * 1024 * 1024;
+  static const _allowedDownloadHosts = {
+    'github.com',
+    'objects.githubusercontent.com',
+    'release-assets.githubusercontent.com',
+  };
+
+  static bool _isAllowedDownloadUrl(Uri url) =>
+      url.scheme == 'https' && _allowedDownloadHosts.contains(url.host);
+
+  final http.Client _client;
+  final Future<Directory> Function() _temporaryDirectory;
+
+  UpdateService({
+    http.Client? client,
+    Future<Directory> Function()? temporaryDirectory,
+  })  : _client = client ?? http.Client(),
+        _temporaryDirectory = temporaryDirectory ?? getTemporaryDirectory;
 
   Future<String> currentVersion() async {
     final info = await PackageInfo.fromPlatform();
@@ -29,25 +55,47 @@ class UpdateService {
   /// 최신 릴리즈 조회. 네트워크 오류·릴리즈 없음 등은 전부 null로 조용히 무시.
   Future<UpdateInfo?> checkLatest() async {
     try {
-      final res = await http
-          .get(Uri.parse(
-              'https://api.github.com/repos/$_repo/releases/latest'))
+      final res = await _client
+          .get(
+            Uri.parse('https://api.github.com/repos/$_repo/releases/latest'),
+            headers: const {
+              'Accept': 'application/vnd.github+json',
+              'User-Agent': 'RunLog-Update-Checker',
+            },
+          )
           .timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) return null;
       final json = jsonDecode(res.body) as Map<String, dynamic>;
       final tag =
           (json['tag_name'] as String? ?? '').replaceFirst(RegExp('^v'), '');
-      final assets = (json['assets'] as List? ?? [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-      final apk = assets.cast<Map<String, dynamic>?>().firstWhere(
-            (a) => (a?['name'] as String? ?? '').endsWith('.apk'),
-            orElse: () => null,
-          );
+      final assets = json['assets'];
+      if (assets is! List) return null;
+
+      Map<String, dynamic>? apk;
+      for (final asset in assets) {
+        if (asset is! Map) continue;
+        final candidate = Map<String, dynamic>.from(asset);
+        if (candidate['name'] == _apkAssetName) {
+          apk = candidate;
+          break;
+        }
+      }
+
       final apkUrl = apk?['browser_download_url'] as String?;
-      if (tag.isEmpty || apkUrl == null) return null;
+      final digest = _normalizeSha256(apk?['digest'] as String?);
+      if (tag.isEmpty || apkUrl == null || digest == null) return null;
+      final parsedUrl = Uri.tryParse(apkUrl);
+      if (parsedUrl == null ||
+          parsedUrl.scheme != 'https' ||
+          !_allowedDownloadHosts.contains(parsedUrl.host)) {
+        return null;
+      }
       return UpdateInfo(
-          version: tag, apkUrl: apkUrl, notes: json['body'] as String? ?? '');
+        version: tag,
+        apkUrl: apkUrl,
+        notes: json['body'] as String? ?? '',
+        sha256: digest,
+      );
     } catch (_) {
       return null;
     }
@@ -71,23 +119,94 @@ class UpdateService {
     return false;
   }
 
-  /// APK를 임시 디렉토리에 다운로드하고 로컬 경로를 반환한다.
+  /// 검증된 Release APK를 임시 디렉토리에 다운로드하고 로컬 경로를 반환한다.
   Future<String> downloadApk(
-      String url, void Function(double progress) onProgress) async {
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/runlog-update.apk');
-    final request = http.Request('GET', Uri.parse(url));
-    final response = await http.Client().send(request);
-    final total = response.contentLength ?? 0;
-    var received = 0;
-    final sink = file.openWrite();
-    await for (final chunk in response.stream) {
-      sink.add(chunk);
-      received += chunk.length;
-      if (total > 0) onProgress(received / total);
+      UpdateInfo info, void Function(double progress) onProgress) async {
+    final url = Uri.tryParse(info.apkUrl);
+    if (url == null || !_isAllowedDownloadUrl(url)) {
+      throw const FormatException('허용되지 않은 업데이트 다운로드 주소입니다');
     }
-    await sink.close();
+
+    final dir = await _temporaryDirectory();
+    final file = File('${dir.path}/runlog-update.apk');
+    final partial = File('${dir.path}/runlog-update.apk.part');
+    if (await partial.exists()) await partial.delete();
+
+    late http.StreamedResponse response;
+    var downloadUrl = url;
+    for (var redirectCount = 0;; redirectCount++) {
+      final request = http.Request('GET', downloadUrl)
+        ..followRedirects = false
+        ..maxRedirects = 0;
+      response = await _client
+          .send(request)
+          .timeout(const Duration(seconds: 30));
+      if (response.statusCode < 300 || response.statusCode >= 400) break;
+      if (redirectCount >= 3) {
+        await response.stream.drain<void>();
+        throw const FormatException('업데이트 redirect 횟수가 너무 많습니다');
+      }
+      final location = response.headers['location'];
+      await response.stream.drain<void>();
+      if (location == null) {
+        throw const FormatException('업데이트 redirect 주소가 없습니다');
+      }
+      downloadUrl = downloadUrl.resolve(location);
+      if (!_isAllowedDownloadUrl(downloadUrl)) {
+        throw const FormatException('허용되지 않은 업데이트 redirect 주소입니다');
+      }
+    }
+    if (response.statusCode != 200) {
+      throw HttpException('업데이트 다운로드 실패 (${response.statusCode})');
+    }
+
+    final total = response.contentLength ?? 0;
+    if (total > _maxApkBytes) {
+      throw const FormatException('업데이트 파일이 너무 큽니다');
+    }
+
+    var received = 0;
+    final digestSink = AccumulatorSink<Digest>();
+    final digestInput = sha256.startChunkedConversion(digestSink);
+    final sink = partial.openWrite();
+    try {
+      await for (final chunk in response.stream) {
+        received += chunk.length;
+        if (received > _maxApkBytes) {
+          throw const FormatException('업데이트 파일이 너무 큽니다');
+        }
+        sink.add(chunk);
+        digestInput.add(chunk);
+        if (total > 0) onProgress(received / total);
+      }
+      digestInput.close();
+    } finally {
+      await sink.close();
+    }
+
+    if (total > 0 && received != total) {
+      await partial.delete();
+      throw const FormatException('업데이트 파일이 완전히 다운로드되지 않았습니다');
+    }
+
+    final actualDigest = digestSink.events.single.toString();
+    if (actualDigest != info.sha256) {
+      await partial.delete();
+      throw const FormatException('업데이트 파일 무결성 검증에 실패했습니다');
+    }
+
+    if (await file.exists()) await file.delete();
+    await partial.rename(file.path);
     return file.path;
+  }
+
+  static String? _normalizeSha256(String? value) {
+    if (value == null) return null;
+    final normalized = value.trim().toLowerCase();
+    final hex = normalized.startsWith('sha256:')
+        ? normalized.substring('sha256:'.length)
+        : normalized;
+    return RegExp(r'^[0-9a-f]{64}$').hasMatch(hex) ? hex : null;
   }
 
   /// 다운로드된 APK를 시스템 설치 프로그램으로 연다.
