@@ -38,6 +38,7 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
       final viaPackage = await health.debugRawWorkouts(since);
       final viaNative = await health.debugNativeSessions(since);
       final viaPlanned = await health.debugPlannedSessions(since);
+      if (!mounted) return;
       setState(() {
         _viaPackage = viaPackage;
         _viaNative = viaNative;
@@ -45,10 +46,12 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
         _loading = false;
       });
     } catch (e) {
-      setState(() {
-        _error = '$e';
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = '$e';
+          _loading = false;
+        });
+      }
     }
   }
 

@@ -42,6 +42,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
           .subtract(Duration(days: _ranges[_selectedRange].days));
       final runs =
           await ref.read(runsProvider.notifier).fetchCandidates(from);
+      if (!mounted) return;
       final existing = (ref.read(runsProvider).value ?? const <RunSession>[])
           .map((r) => r.id)
           .toSet();
@@ -53,9 +54,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
           ..addAll(runs.map((r) => r.id).where((id) => !existing.contains(id)));
       });
     } catch (e) {
-      setState(() => _error = '$e');
+      if (mounted) setState(() => _error = '$e');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -70,22 +71,32 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             !_checked.contains(r.id) && !_alreadyImported.contains(r.id))
         .map((r) => r.id);
     setState(() => _loading = true);
-    final result = await ref
-        .read(runsProvider.notifier)
-        .importRuns(selected, excludedIds: excluded);
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-        SnackBar(content: Text('${result.addedCount}개 기록을 가져왔습니다')));
-    for (final badge in result.newBadges) {
-      messenger.showSnackBar(SnackBar(
-        content:
-            Text('새 업적: ${badge.title} — ${badge.description}'),
-        backgroundColor: AppColors.neonDim,
-        duration: const Duration(seconds: 4),
-      ));
+    try {
+      final result = await ref
+          .read(runsProvider.notifier)
+          .importRuns(selected, excludedIds: excluded);
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
+          SnackBar(content: Text('${result.addedCount}개 기록을 가져왔습니다')));
+      for (final badge in result.newBadges) {
+        messenger.showSnackBar(SnackBar(
+          content:
+              Text('새 업적: ${badge.title} — ${badge.description}'),
+          backgroundColor: AppColors.neonDim,
+          duration: const Duration(seconds: 4),
+        ));
+      }
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = '$e');
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('기록 가져오기 실패: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
-    Navigator.pop(context);
   }
 
   @override

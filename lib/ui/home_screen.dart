@@ -24,29 +24,57 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _syncing = false;
+  String? _appVersion;
   final _updateService = UpdateService();
 
   @override
   void initState() {
     super.initState();
     // 홈 진입 시 조용히 새 버전 확인 (없거나 실패해도 아무 알림 없음)
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _checkForUpdate(silent: true));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadVersion();
+      _checkForUpdate(silent: true);
+    });
+  }
+
+  Future<void> _loadVersion() async {
+    final version = await _updateService.currentVersion();
+    if (!mounted) return;
+    setState(() => _appVersion = version);
   }
 
   Future<void> _sync() async {
     if (_syncing) return;
     setState(() => _syncing = true);
-    final result = await ref.read(runsProvider.notifier).sync();
-    setState(() => _syncing = false);
-    _showResult(result);
+    try {
+      final result = await ref.read(runsProvider.notifier).sync();
+      if (!mounted) return;
+      _showResult(result);
+    } catch (e) {
+      if (!mounted) return;
+      _showResult(SyncResult(error: '동기화 실패: $e'));
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
   }
 
   Future<void> _checkForUpdate({bool silent = false}) async {
-    final current = await _updateService.currentVersion();
-    final latest = await _updateService.checkLatest();
+    late final String current;
+    late final UpdateInfo? latest;
+    try {
+      current = await _updateService.currentVersion();
+      latest = await _updateService.checkLatest();
+    } catch (e) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('업데이트 확인 실패: $e')),
+        );
+      }
+      return;
+    }
     if (!mounted) return;
-    if (latest == null || !UpdateService.isNewer(current, latest.version)) {
+    final update = latest;
+    if (update == null || !UpdateService.isNewer(current, update.version)) {
       if (!silent) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('이미 최신 버전입니다')));
@@ -57,11 +85,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.card,
-        title: Text('새 버전 v${latest.version}'),
+        title: Text('새 버전 v${update.version}'),
         content: Text(
-          latest.notes.trim().isEmpty
+          update.notes.trim().isEmpty
               ? '새 버전이 있습니다. 지금 업데이트할까요?'
-              : latest.notes,
+              : update.notes,
           style: kMetricLabelStyle,
         ),
         actions: [
@@ -76,7 +104,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             onPressed: () {
               Navigator.pop(ctx);
-              _downloadAndInstall(latest);
+              _downloadAndInstall(update);
             },
             child: const Text('업데이트'),
           ),
@@ -111,17 +139,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
     );
+    var dialogDismissed = false;
+    var downloadCompleted = false;
     try {
       final path = await _updateService.downloadApk(
-          info.apkUrl, (p) => progress.value = p);
+          info, (p) => progress.value = p);
+      downloadCompleted = true;
       if (!mounted) return;
       Navigator.pop(context);
+      dialogDismissed = true;
       await _updateService.install(path);
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context);
+      if (!dialogDismissed) Navigator.pop(context);
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('업데이트 다운로드 실패: $e')));
+          .showSnackBar(SnackBar(
+              content: Text(
+                  '업데이트 ${downloadCompleted ? '설치' : '다운로드'} 실패: $e')));
+    } finally {
+      progress.dispose();
     }
   }
 
@@ -152,17 +188,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
-          children: [
-            Text('RunLog'),
-            SizedBox(width: 8),
-            Text('v1.6.7',
-                style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w400)),
-          ],
-        ),
+            title: Row(
+              children: [
+                Text('RunLog'),
+                SizedBox(width: 8),
+                if (_appVersion != null)
+                  Text(
+                    'v$_appVersion',
+                    style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w400),
+                  ),
+              ],
+            ),
         actions: [
           if (_syncing)
             const Padding(

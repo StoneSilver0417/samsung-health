@@ -17,6 +17,14 @@ import 'widgets/calendar_heatmap.dart';
 class AnalysisScreen extends ConsumerWidget {
   const AnalysisScreen({super.key});
 
+  static (double min, double max) safePaceRange(Iterable<double> values) {
+    final minValue = values.reduce((a, b) => a < b ? a : b);
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    final min = (minValue * 2).floor() / 2;
+    final max = (maxValue * 2).ceil() / 2;
+    return min == max ? (min - 0.5, max + 0.5) : (min, max);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final runs = ref.watch(runsProvider).value ?? const <RunSession>[];
@@ -493,8 +501,7 @@ class AnalysisScreen extends ConsumerWidget {
     );
     // 30초(0.5분) 간격으로 눈금 정렬
     final paceMins = ordered.map((r) => r.avgPaceSecPerKm / 60.0);
-    final minY = (paceMins.reduce((a, b) => a < b ? a : b) * 2).floor() / 2;
-    final maxY = (paceMins.reduce((a, b) => a > b ? a : b) * 2).ceil() / 2;
+    final (minY, maxY) = safePaceRange(paceMins);
 
     String fmtMin(double v) {
       final m = v.floor();

@@ -31,10 +31,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _save() async {
-    await ref.read(repoProvider).setGeminiApiKey(_keyCtrl.text.trim());
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('저장했습니다')));
+    try {
+      await ref.read(repoProvider).setGeminiApiKey(_keyCtrl.text.trim());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('저장했습니다')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('저장 실패: $e')));
+    }
   }
 
   @override
@@ -52,8 +58,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 8),
           const Text(
             'Google AI Studio(aistudio.google.com)에서 무료로 발급받은 API 키를 입력하면\n'
-            '러닝 상세 화면에서 AI가 기록을 요약·코멘트해줍니다. 키는 이 기기에만\n'
-            '저장되며 외부로 전송되지 않습니다.',
+            '러닝 상세 화면에서 AI가 기록을 요약·코멘트해줍니다. 키는 기기에 암호화\n'
+            '저장되지만, AI 요약을 요청할 때 Google Gemini API로 전송됩니다.',
             style: kMetricLabelStyle,
           ),
           const SizedBox(height: 20),

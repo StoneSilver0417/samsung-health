@@ -9,6 +9,9 @@ import 'theme.dart';
 
 enum _ManualInputMode { duration, pace }
 
+String manualRunId(DateTime start, DateTime createdAt) =>
+    'manual-${start.millisecondsSinceEpoch}-${createdAt.microsecondsSinceEpoch}';
+
 /// Health Connect 동기화 장애 등으로 유실된 기록을 수동으로 채워 넣기 위한 화면.
 /// 삼성헬스 앱에 남아있는 원본 값(날짜/거리/시간)을 사용자가 직접 입력한다.
 class ManualAddScreen extends ConsumerStatefulWidget {
@@ -157,12 +160,12 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
-    if (picked != null) setState(() => _date = picked);
+    if (picked != null && mounted) setState(() => _date = picked);
   }
 
   Future<void> _pickTime() async {
     final picked = await showTimePicker(context: context, initialTime: _time);
-    if (picked != null) setState(() => _time = picked);
+    if (picked != null && mounted) setState(() => _time = picked);
   }
 
   void _changeInputMode(_ManualInputMode mode) {
@@ -216,7 +219,7 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
     final editing = widget.editing;
 
     final run = RunSession(
-      id: editing?.id ?? 'manual-${start.millisecondsSinceEpoch}',
+      id: editing?.id ?? manualRunId(start, DateTime.now()),
       startTime: start,
       endTime: end,
       distanceM: km * 1000,
@@ -233,21 +236,30 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
     );
 
     setState(() => _saving = true);
-    final result = await ref.read(runsProvider.notifier).importRuns([run]);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_isEditing ? '기록을 수정했습니다' : '기록을 추가했습니다')),
-    );
-    for (final badge in result.newBadges) {
+    try {
+      final result = await ref.read(runsProvider.notifier).importRuns([run]);
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('새 업적: ${badge.title} — ${badge.description}'),
-          backgroundColor: AppColors.neonDim,
-          duration: const Duration(seconds: 4),
-        ),
+        SnackBar(content: Text(_isEditing ? '기록을 수정했습니다' : '기록을 추가했습니다')),
       );
+      for (final badge in result.newBadges) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('새 업적: ${badge.title} — ${badge.description}'),
+            backgroundColor: AppColors.neonDim,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('기록 저장 실패: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    Navigator.pop(context);
   }
 
   @override
