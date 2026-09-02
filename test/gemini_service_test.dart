@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:runlog/logic/stats.dart';
 import 'package:runlog/models/run_session.dart';
 import 'package:runlog/services/gemini_service.dart';
 
@@ -99,5 +100,36 @@ void main() {
     expect(prompt, contains('4.50km'));
     expect(prompt, contains('6\'00"/km'));
     expect(prompt, contains('148bpm'));
+  });
+
+  test('buildGoalPrompt includes structured goal coaching sections and stats', () {
+    const stats = StatsSummary(
+      weekKm: 12.0,
+      weekRuns: 2,
+      weekSec: 3600,
+      totalKm: 50.0,
+      totalRuns: 10,
+      totalSec: 18000,
+      currentStreakWeeks: 3,
+      longestRunKm: 8.0,
+      best1kPaceSec: 300,
+      best5kPaceSec: 1650,
+      maxWeekKm: 25.0,
+    );
+
+    final monthly = MonthlyStats.fromRuns([
+      _run(km: 5.0, durationSec: 1800),
+      _run(km: 5.0, durationSec: 1800),
+    ]);
+
+    final prompt = GeminiService.buildGoalPrompt(stats, monthly, []);
+
+    expect(prompt, contains('🎯 [다음 1~2주 목표]'));
+    expect(prompt, contains('🏃 [추천 세션 구성]'));
+    expect(prompt, contains('💡 [코칭 포인트 & 주의사항]'));
+    expect(prompt, contains('전체 누적: 10회 / 50.0km'));
+    expect(prompt, contains('주 3회 연속 달성(스트릭): 3주'));
+    expect(prompt, contains('최장 거리(1회): 8.0km'));
+    expect(prompt, contains('개인 최고 페이스: 1km 5\'00"/km / 5km 27\'30"/km'));
   });
 }

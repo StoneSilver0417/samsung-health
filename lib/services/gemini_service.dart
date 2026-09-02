@@ -152,38 +152,78 @@ class GeminiService {
     final weeklyKm = <DateTime, double>{
       for (final week in weekStarts) week: 0,
     };
+    final weeklyRuns = <DateTime, int>{
+      for (final week in weekStarts) week: 0,
+    };
     for (final run in recentRuns) {
       final week = StatsSummary.weekStart(run.startTime);
       if (weeklyKm.containsKey(week)) {
         weeklyKm[week] = weeklyKm[week]! + run.distanceKm;
+        weeklyRuns[week] = weeklyRuns[week]! + 1;
       }
     }
 
+    final best1k = stats.best1kPaceSec == null
+        ? '기록 없음'
+        : '${fmtPace(stats.best1kPaceSec!)}/km';
     final best5k = stats.best5kPaceSec == null
         ? '기록 없음'
         : '${fmtPace(stats.best5kPaceSec!)}/km';
     final recentWeeklyKm = weekStarts
-        .map((week) => '${weeklyKm[week]!.toStringAsFixed(1)}km')
+        .map((week) =>
+            '${weeklyKm[week]!.toStringAsFixed(1)}km(${weeklyRuns[week]}회)')
         .join(' / ');
+
+    final thisMonthPace = monthly.thisMonthAvgPaceSec != null
+        ? '${fmtPace(monthly.thisMonthAvgPaceSec!)}/km'
+        : '기록 없음';
+    final lastMonthPace = monthly.lastMonthAvgPaceSec != null
+        ? '${fmtPace(monthly.lastMonthAvgPaceSec!)}/km'
+        : '기록 없음';
+
+    final recentPace = averagePaceSecPerKm(recentRuns.take(5).toList());
+    final recentAvgPaceStr =
+        recentPace != null ? '${fmtPace(recentPace)}/km' : '기록 없음';
 
     final buf = StringBuffer();
     buf.writeln(
-      '너는 개인 러닝 코치야. 아래 러닝 이력을 보고 다음 1~2주 목표를 '
-      '한국어 2~4문장으로 제안해줘. 무리한 급증 없이 현재 수준에서 약간 '
-      '도전적인 수준으로, 구체적 숫자(주 몇 회, 총 몇 km, 목표 페이스나 거리)를 '
-      '포함해줘. 이모지나 과장 없이 담백하게 써줘.',
+      '너는 전문 개인 러닝 코치야. 아래 러너의 누적 통계, 월간/주간 추세, 최근 러닝 기록을 심층 분석해서 다음 1~2주간 실천할 맞춤형 목표와 훈련 계획을 제안해줘.',
+    );
+    buf.writeln(
+      '급격한 마일리지 증가로 인한 부상을 방지하고(주간 거리 10% 이내 증편 원칙), 현재 체력 수준에 맞춰 달성 가능하면서도 동기부여가 되는 계획을 세워줘.',
+    );
+    buf.writeln(
+      '이모지나 과장 없이, 명확하고 논리적인 톤으로 아래 3가지 섹션 형식에 맞춰 작성해줘:',
     );
     buf.writeln();
-    buf.writeln('[러닝 이력]');
+    buf.writeln('🎯 [다음 1~2주 목표]');
+    buf.writeln('- 주당 러닝 빈도 및 주간 목표 총 거리 (예: 주 3회, 주간 15~18km)');
+    buf.writeln('- 목표 단일 세션 거리 및 목표 페이스 기준');
+    buf.writeln();
+    buf.writeln('🏃 [추천 세션 구성]');
+    buf.writeln('- 회복/이지런, 템포/지속주, 롱런(LSD) 등 주간 2~3회 러닝의 구체적인 세션별 분배 가이드');
+    buf.writeln();
+    buf.writeln('💡 [코칭 포인트 & 주의사항]');
+    buf.writeln('- 심박 관리(Z2/Z3 영역 비중), 페이스 조절, 부상 예방 및 회복에 대한 핵심 조언 1~2개');
+    buf.writeln();
+    buf.writeln('---');
+    buf.writeln('[러닝 이력 및 통계]');
     buf.writeln(
-      '- 누적: ${stats.totalRuns}회, ${stats.totalKm.toStringAsFixed(1)}km',
+      '- 전체 누적: ${stats.totalRuns}회 / ${stats.totalKm.toStringAsFixed(1)}km',
     );
-    buf.writeln('- 주 3회 스트릭: ${stats.currentStreakWeeks}주');
-    buf.writeln('- 최장 거리: ${stats.longestRunKm.toStringAsFixed(1)}km');
-    buf.writeln('- 최고 5km 페이스: $best5k');
-    buf.writeln('- 이번 달 거리: ${monthly.thisMonthKm.toStringAsFixed(1)}km');
-    buf.writeln('- 지난달 거리: ${monthly.lastMonthKm.toStringAsFixed(1)}km');
-    buf.writeln('- 최근 4주 주간 거리(오래된 순): $recentWeeklyKm');
+    buf.writeln(
+      '- 주 3회 연속 달성(스트릭): ${stats.currentStreakWeeks}주 (최다 주간 거리 ${stats.maxWeekKm.toStringAsFixed(1)}km)',
+    );
+    buf.writeln('- 최장 거리(1회): ${stats.longestRunKm.toStringAsFixed(1)}km');
+    buf.writeln('- 개인 최고 페이스: 1km $best1k / 5km $best5k');
+    buf.writeln('- 최근 5회 평균 페이스: $recentAvgPaceStr');
+    buf.writeln(
+      '- 이번 달: ${monthly.thisMonthKm.toStringAsFixed(1)}km (${monthly.thisMonthRuns}회, 평균 페이스 $thisMonthPace)',
+    );
+    buf.writeln(
+      '- 지난달: ${monthly.lastMonthKm.toStringAsFixed(1)}km (${monthly.lastMonthRuns}회, 평균 페이스 $lastMonthPace)',
+    );
+    buf.writeln('- 최근 4주 주간 실적(오래된 순): $recentWeeklyKm');
     return buf.toString();
   }
 
