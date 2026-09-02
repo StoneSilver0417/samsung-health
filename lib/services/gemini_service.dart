@@ -26,7 +26,7 @@ class GeminiService {
     RunSession run,
     List<RunSession> recentRuns,
   ) {
-    return _generate(apiKey, _buildPrompt(run, recentRuns));
+    return _generate(apiKey, buildPrompt(run, recentRuns));
   }
 
   /// 최근 러닝 통계를 바탕으로 다음 1~2주의 구체적인 목표를 제안한다.
@@ -38,7 +38,7 @@ class GeminiService {
   ) {
     return _generate(
       apiKey,
-      _buildGoalPrompt(stats, monthly, recentRuns),
+      buildGoalPrompt(stats, monthly, recentRuns),
     );
   }
 
@@ -123,7 +123,7 @@ class GeminiService {
     return text;
   }
 
-  String _buildGoalPrompt(
+  static String buildGoalPrompt(
     StatsSummary stats,
     MonthlyStats monthly,
     List<RunSession> recentRuns,
@@ -171,35 +171,100 @@ class GeminiService {
     return buf.toString();
   }
 
-  String _buildPrompt(RunSession run, List<RunSession> recentRuns) {
+  static String buildPrompt(RunSession run, List<RunSession> recentRuns) {
     final buf = StringBuffer();
-    buf.writeln('너는 개인 러닝 코치야. 아래 러닝 기록을 보고 한국어로 2~4문장의 짧은 요약과 코멘트를 작성해줘. '
-        '숫자는 자연스럽게 문장에 녹이고, 과장된 칭찬이나 이모지 없이 담백하게 써줘.');
+    buf.writeln('너는 전문 개인 러닝 코치야. 아래 러닝 기록 데이터를 심층 분석해서 한국어로 전문적이고 실용적인 코칭 피드백을 작성해줘.');
+    buf.writeln('이모지나 과장된 감탄사 없이, 명확하고 논리적인 톤으로 아래 3가지 섹션 형식에 맞춰 작성해줘:');
     buf.writeln();
-    buf.writeln('[이번 러닝]');
+    buf.writeln('📌 [핵심 요약]');
+    buf.writeln('- 이번 러닝의 총평과 주요 성과 요약 (1~2문장)');
+    buf.writeln();
+    buf.writeln('📊 [페이스 & 심박 분석]');
+    buf.writeln('- 구간별 페이스(스플릿) 변화와 페이스 배분(이븐/네거티브/포지티브 스플릿) 분석');
+    buf.writeln('- 심박수 및 심박존(유산소/지구력/역치) 분포를 바탕으로 한 심폐 효율 및 체력 부하 분석');
+    buf.writeln('- 최근 러닝 평균과의 비교 및 성장 포인트');
+    buf.writeln();
+    buf.writeln('💡 [맞춤 코칭 팁]');
+    buf.writeln('- 이번 러닝 데이터를 기반으로 한 다음 훈련 조언 (회복런, 심박존 관리, 케이던스/자세, 다음 목표 거리/페이스 제안 등 실천 가능한 구체적 팁 1~2개)');
+    buf.writeln();
+    buf.writeln('---');
+    buf.writeln('[이번 러닝 데이터]');
     buf.writeln('- 거리: ${run.distanceKm.toStringAsFixed(2)}km');
-    buf.writeln('- 시간: ${fmtDuration(run.durationSec)}');
+    buf.writeln('- 소요 시간: ${fmtDuration(run.durationSec)}');
     buf.writeln('- 평균 페이스: ${fmtPace(run.avgPaceSecPerKm)}/km');
     if (run.avgHr != null) buf.writeln('- 평균 심박수: ${run.avgHr!.round()}bpm');
     if (run.maxHr != null) buf.writeln('- 최고 심박수: ${run.maxHr!.round()}bpm');
-    if (run.calories != null) {
-      buf.writeln('- 칼로리: ${run.calories!.round()}kcal');
+    if (run.calories != null) buf.writeln('- 소모 칼로리: ${run.calories!.round()}kcal');
+    if (run.steps != null && run.steps! > 0 && run.durationSec > 0) {
+      final spm = (run.steps! / (run.durationSec / 60)).round();
+      buf.writeln('- 총 걸음수: ${run.steps}걸음 (평균 케이던스: ${spm}spm)');
+    }
+    if (run.elevationM != null && run.elevationM! > 0) {
+      buf.writeln('- 획득 고도: ${run.elevationM!.toStringAsFixed(1)}m');
     }
     final hour = run.startTime.hour;
-    buf.writeln('- 시각: ${run.startTime.hour}시 (${hour >= 21 || hour < 4 ? '야간' : hour < 8 ? '새벽' : '주간'} 러닝)');
+    buf.writeln('- 러닝 시간대: ${run.startTime.hour}시 (${hour >= 21 || hour < 4 ? '야간' : hour < 8 ? '새벽' : '주간'} 러닝)');
 
-    if (recentRuns.isNotEmpty) {
-      final avgKm =
-          recentRuns.fold<double>(0, (a, r) => a + r.distanceKm) /
-              recentRuns.length;
+    // 스플릿 데이터
+    if (run.splits.isNotEmpty) {
       buf.writeln();
-      buf.writeln('[최근 ${recentRuns.length}회 평균 — 비교 참고용]');
-      buf.writeln('- 평균 거리: ${avgKm.toStringAsFixed(2)}km');
+      buf.writeln('[1km 구간별 스플릿]');
+      for (final s in run.splits) {
+        final kmLabel = s.km == s.km.toInt()
+            ? '${s.km.toInt()}km'
+            : '${s.km.toStringAsFixed(2)}km';
+        final hrText =
+            s.avgHr != null ? ' (평균 ${s.avgHr!.round()}bpm)' : '';
+        buf.writeln('- $kmLabel: ${fmtPace(s.paceSecPerKm)}/km$hrText');
+      }
+    }
+
+    // 심박존 데이터
+    if (run.hrSeries.isNotEmpty) {
+      final zones = hrZoneDistribution(run.hrSeries);
+      final zLabels = [
+        'Z1(회복 <60%)',
+        'Z2(지구력 60~70%)',
+        'Z3(템포 70~80%)',
+        'Z4(역치 80~90%)',
+        'Z5(무산소 90%+)'
+      ];
+      final zoneDetails = <String>[];
+      for (var i = 0; i < zones.length; i++) {
+        final pct = (zones[i] * 100).round();
+        if (pct > 0) {
+          zoneDetails.add('${zLabels[i]}: $pct%');
+        }
+      }
+      if (zoneDetails.isNotEmpty) {
+        buf.writeln();
+        buf.writeln('[심박존 분포]');
+        buf.writeln('- ${zoneDetails.join(', ')}');
+      }
+    }
+
+    // 최근 러닝 평균
+    if (recentRuns.isNotEmpty) {
+      final avgKm = recentRuns.fold<double>(0, (a, r) => a + r.distanceKm) /
+          recentRuns.length;
       final avgPace = averagePaceSecPerKm(recentRuns);
+      final validHrs =
+          recentRuns.map((r) => r.avgHr).whereType<double>().toList();
+      final avgHr = validHrs.isNotEmpty
+          ? (validHrs.reduce((a, b) => a + b) / validHrs.length).round()
+          : null;
+
+      buf.writeln();
+      buf.writeln('[최근 ${recentRuns.length}회 러닝 평균 — 비교용]');
+      buf.writeln('- 평균 거리: ${avgKm.toStringAsFixed(2)}km');
       if (avgPace != null) {
         buf.writeln('- 평균 페이스: ${fmtPace(avgPace)}/km');
       }
+      if (avgHr != null) {
+        buf.writeln('- 평균 심박수: ${avgHr}bpm');
+      }
     }
+
     return buf.toString();
   }
 }
