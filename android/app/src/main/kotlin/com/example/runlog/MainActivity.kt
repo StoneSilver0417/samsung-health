@@ -8,6 +8,7 @@ import androidx.health.connect.client.records.ElevationGainedRecord
 import androidx.health.connect.client.records.ExerciseSegment
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.PlannedExerciseSessionRecord
+import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.Vo2MaxRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
@@ -20,12 +21,13 @@ import java.time.Instant
 import kotlin.reflect.KClass
 
 /// health 패키지가 노출하지 않는 Health Connect 데이터(운동 세그먼트,
-/// 상승고도, VO2max)를 직접 읽는 보조 채널.
+/// 상승고도, VO2max, 걸음수 직독)를 직접 읽는 보조 채널.
 class MainActivity : FlutterFragmentActivity() {
     private val extraPermissions = setOf(
         HealthPermission.getReadPermission(ElevationGainedRecord::class),
         HealthPermission.getReadPermission(Vo2MaxRecord::class),
         HealthPermission.getReadPermission(PlannedExerciseSessionRecord::class),
+        HealthPermission.getReadPermission(StepsRecord::class),
     )
 
     private var pendingPermResult: MethodChannel.Result? = null
@@ -132,9 +134,26 @@ class MainActivity : FlutterFragmentActivity() {
                     startMs,
                     endMs,
                 )
+                val stepRecords = readAllRecords(
+                    client,
+                    StepsRecord::class,
+                    startMs,
+                    endMs,
+                )
                 val sessions = records.map { rec ->
+                    val recStart = rec.startTime.toEpochMilli()
+                    val recEnd = rec.endTime.toEpochMilli()
+                    val matchedSteps = stepRecords
+                        .filter { s ->
+                            val sStart = s.startTime.toEpochMilli()
+                            val sEnd = s.endTime.toEpochMilli()
+                            sStart < recEnd && sEnd > recStart
+                        }
+                        .sumOf { it.count }
+
                     mapOf(
                         "uuid" to rec.metadata.id,
+                        "totalSteps" to matchedSteps,
                         "segments" to rec.segments.map { seg ->
                             mapOf(
                                 "startMs" to seg.startTime.toEpochMilli(),

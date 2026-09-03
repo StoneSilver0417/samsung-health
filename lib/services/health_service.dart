@@ -68,7 +68,7 @@ class HealthService {
     }
   }
 
-  Future<(List<RunSegment>, List<RunLap>)> _fetchSessionDetails(
+  Future<(List<RunSegment>, List<RunLap>, int?)> _fetchSessionDetails(
       String uuid,
       DateTime start,
       DateTime end,
@@ -123,11 +123,13 @@ class HealthService {
           );
         }).toList();
 
-        return (segments, laps);
+        final totalSteps = (session['totalSteps'] as num?)?.toInt();
+
+        return (segments, laps, totalSteps);
       }
-      return (const <RunSegment>[], const <RunLap>[]);
+      return (const <RunSegment>[], const <RunLap>[], null);
     } catch (_) {
-      return (const <RunSegment>[], const <RunLap>[]);
+      return (const <RunSegment>[], const <RunLap>[], null);
     }
   }
 
@@ -363,15 +365,24 @@ class HealthService {
       calories = calSum > 0 ? calSum : null;
     }
 
-    // 케이던스(걸음) — 삼성헬스가 미제공하면 null
-    final steps = (await _sumNumeric(HealthDataType.STEPS, start, end,
-            point.sourceId, point.sourceName))
-        .round();
-
-    // 인터벌 세그먼트(운동/회복)·실제 랩·상승고도 — 네이티브 채널
-    final (segments, laps) =
+    // 인터벌 세그먼트(운동/회복)·실제 랩·네이티브 걸음수·상승고도 — 네이티브 채널
+    final (segments, laps, nativeSteps) =
         await _fetchSessionDetails(point.uuid, start, end, deltas, hrSamples);
     final elevation = await _fetchElevation(start, end, point.sourceId);
+
+    // 걸음 수 (Health Connect Workout 집계값 > 네이티브 직독 > health 패키지 합산)
+    int? steps = value.totalSteps;
+    if (steps == null || steps <= 0) {
+      if (nativeSteps != null && nativeSteps > 0) {
+        steps = nativeSteps;
+      }
+    }
+    if (steps == null || steps <= 0) {
+      final sumSteps = (await _sumNumeric(HealthDataType.STEPS, start, end,
+              point.sourceId, point.sourceName))
+          .round();
+      if (sumSteps > 0) steps = sumSteps;
+    }
 
     final avgHr = hrSamples.isEmpty
         ? null
@@ -389,7 +400,7 @@ class HealthService {
       avgHr: avgHr,
       maxHr: maxHr,
       calories: calories,
-      steps: steps > 0 ? steps : null,
+      steps: (steps != null && steps > 0) ? steps : null,
       elevationM: elevation > 0 ? elevation : null,
       segments: segments,
       laps: laps,

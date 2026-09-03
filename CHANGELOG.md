@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-03 (v1.8.3 — Health Connect 워치 걸음 수 네이티브 직독 및 다중 폴백 연동)
+
+### 버그 수정
+- **네이티브 Health Connect `StepsRecord` 직독 채널 추가**:
+  - `MainActivity.kt`에서 `StepsRecord`를 직접 조회하여 세션 시간대와 정확히 일치하는 걸음 수를 산출
+  - Health Connect Workout 집계값(`value.totalSteps`), 네이티브 직독, health 패키지 `STEPS`의 3중 폴백 구조를 구축하여 걸음 수 누락을 원천 차단
+- **기존 저장 기록 재동기화 지원**:
+  - 앱에서 동기화(↻) 시 네이티브 채널로 최신 걸음 데이터가 즉시 보강되도록 처리
+
 ## 2026-09-03 (v1.8.2 — Health Connect 걸음 수 매칭 버그 수정 및 보폭/케이던스 이상치 필터링)
 
 ### 버그 수정
