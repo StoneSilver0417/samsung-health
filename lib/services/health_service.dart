@@ -305,7 +305,9 @@ class HealthService {
     );
     final hrSamples = hrPoints
         .where((p) =>
-            sameSource(p.sourceId, point.sourceId) &&
+            sameSource(p.sourceId, point.sourceId,
+                dataSourceName: p.sourceName,
+                workoutSourceName: point.sourceName) &&
             p.value is NumericHealthValue)
         .map((p) => HrSample(
               time: p.dateFrom,
@@ -322,7 +324,9 @@ class HealthService {
     );
     final deltas = distPoints
         .where((p) =>
-            sameSource(p.sourceId, point.sourceId) &&
+            sameSource(p.sourceId, point.sourceId,
+                dataSourceName: p.sourceName,
+                workoutSourceName: point.sourceName) &&
             p.value is NumericHealthValue)
         .map((p) => DistDelta(
               from: p.dateFrom,
@@ -348,7 +352,9 @@ class HealthService {
       );
       final calSum = calPoints
           .where((p) =>
-              sameSource(p.sourceId, point.sourceId) &&
+              sameSource(p.sourceId, point.sourceId,
+                  dataSourceName: p.sourceName,
+                  workoutSourceName: point.sourceName) &&
               p.value is NumericHealthValue)
           .fold<double>(
               0,
@@ -358,8 +364,8 @@ class HealthService {
     }
 
     // 케이던스(걸음) — 삼성헬스가 미제공하면 null
-    final steps = (await _sumNumeric(
-            HealthDataType.STEPS, start, end, point.sourceId))
+    final steps = (await _sumNumeric(HealthDataType.STEPS, start, end,
+            point.sourceId, point.sourceName))
         .round();
 
     // 인터벌 세그먼트(운동/회복)·실제 랩·상승고도 — 네이티브 채널
@@ -394,7 +400,7 @@ class HealthService {
   }
 
   Future<double> _sumNumeric(HealthDataType type, DateTime start, DateTime end,
-      String sourceId) async {
+      String sourceId, String sourceName) async {
     try {
       final points = await _health.getHealthDataFromTypes(
         types: [type],
@@ -403,7 +409,9 @@ class HealthService {
       );
       return points
           .where((p) =>
-              sameSource(p.sourceId, sourceId) &&
+              sameSource(p.sourceId, sourceId,
+                  dataSourceName: p.sourceName,
+                  workoutSourceName: sourceName) &&
               p.value is NumericHealthValue)
           .fold<double>(
               0, (sum, p) => sum + (p.value as NumericHealthValue).numericValue);
@@ -461,8 +469,40 @@ class HealthService {
     return splits;
   }
 
-  static bool sameSource(String dataSourceId, String workoutSourceId) =>
-      dataSourceId == workoutSourceId;
+  static bool sameSource(String dataSourceId, String workoutSourceId,
+      {String dataSourceName = '', String workoutSourceName = ''}) {
+    if (dataSourceId.isNotEmpty && workoutSourceId.isNotEmpty) {
+      if (dataSourceId == workoutSourceId) return true;
+    }
+    if (dataSourceName.isNotEmpty && workoutSourceName.isNotEmpty) {
+      if (dataSourceName == workoutSourceName) return true;
+    }
+    // Cross-match: e.g. Health Connect interval records where source_name contains package name and source_id is empty
+    if (dataSourceName.isNotEmpty && workoutSourceId.isNotEmpty) {
+      if (dataSourceName == workoutSourceId) return true;
+    }
+    if (dataSourceId.isNotEmpty && workoutSourceName.isNotEmpty) {
+      if (dataSourceId == workoutSourceName) return true;
+    }
+
+    final isTargetSamsung = workoutSourceId.contains('shealth') ||
+        workoutSourceId.contains('samsung') ||
+        workoutSourceName.contains('shealth') ||
+        workoutSourceName.toLowerCase().contains('samsung');
+    if (isTargetSamsung) {
+      final isPointSamsung = dataSourceId.contains('shealth') ||
+          dataSourceId.contains('samsung') ||
+          dataSourceName.contains('shealth') ||
+          dataSourceName.toLowerCase().contains('samsung');
+      if (isPointSamsung) return true;
+    }
+
+    if (dataSourceId.isEmpty && dataSourceName.isEmpty) {
+      return true;
+    }
+
+    return dataSourceId == workoutSourceId;
+  }
 
   static double? _avgHrBetween(
       List<HrSample> samples, DateTime from, DateTime to) {

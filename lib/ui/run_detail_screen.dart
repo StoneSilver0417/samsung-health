@@ -128,10 +128,13 @@ class RunDetailScreen extends ConsumerWidget {
       if (run.maxHr != null) ('${run.maxHr!.round()}', '최고 심박'),
       if (run.cadenceSpm != null)
         ('${run.cadenceSpm!.round()}', '케이던스 spm'),
+      if (run.strideCm != null)
+        ('${run.strideCm!.round()} cm', '평균 보폭'),
       if (run.elevationM != null)
         ('${run.elevationM!.round()} m', '상승고도'),
       if (run.calories != null) ('${run.calories!.round()}', 'kcal'),
-      if (run.steps != null) ('${run.steps}', '걸음'),
+      if (run.steps != null && run.cadenceSpm != null)
+        ('${run.steps}', '총 걸음'),
     ];
 
     return Card(
@@ -388,14 +391,18 @@ class RunDetailScreen extends ConsumerWidget {
     final load = run.trainingLoadScore;
     final recovery = run.recommendedRecoveryHours;
 
-    String strideLabel = '걸음 데이터 없음';
-    if (stride != null) {
-      if (stride < 85) {
-        strideLabel = '짧은 보폭 (케이던스 위주)';
+    String strideLabel = '걸음 데이터 미수신';
+    if (run.steps != null && stride == null) {
+      strideLabel = '걸음 샘플 불완전 (${run.steps}보)';
+    } else if (stride != null) {
+      if (stride < 80) {
+        strideLabel = '짧은 보폭 (쇼트 피치)';
       } else if (stride <= 115) {
-        strideLabel = '효율적이고 안정적인 보폭';
+        strideLabel = '효율적인 안정적 보폭';
+      } else if (stride <= 145) {
+        strideLabel = '넓은 보폭 (롱 스트라이드)';
       } else {
-        strideLabel = '긴 보폭 (오버스트라이드 주의)';
+        strideLabel = '고속 질주 보폭';
       }
     }
 

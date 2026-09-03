@@ -163,15 +163,22 @@ class RunSession {
   int get avgPaceSecPerKm =>
       distanceM > 0 ? (durationSec / (distanceM / 1000)).round() : 0;
 
-  /// 평균 케이던스 (걸음/분). 걸음 데이터 없으면 null.
-  double? get cadenceSpm => (steps != null && steps! > 0 && durationSec > 0)
-      ? steps! / (durationSec / 60)
-      : null;
+  /// 평균 케이던스 (걸음/분). 비정상적인 부분 걸음 수(80미만, 260초과)는 null 처리.
+  double? get cadenceSpm {
+    if (steps == null || steps! <= 0 || durationSec <= 0) return null;
+    final spm = steps! / (durationSec / 60);
+    if (spm < 80 || spm > 260) return null;
+    return spm;
+  }
 
-  /// 평균 보폭 (cm). 거리와 걸음 수 있을 때 산출.
-  double? get strideCm => (distanceM > 0 && steps != null && steps! > 0)
-      ? (distanceM / steps! * 100)
-      : null;
+  /// 평균 보폭 (cm). 정상적인 러닝 보폭 범위(45cm ~ 200cm) 및 정상 케이던스일 때만 산출.
+  double? get strideCm {
+    if (distanceM <= 0 || steps == null || steps! <= 0) return null;
+    if (cadenceSpm == null) return null; // 케이던스가 비정상이면 불완전한 부분 걸음으로 판단
+    final cm = (distanceM / steps!) * 100;
+    if (cm < 45 || cm > 200) return null; // 비정상 보폭(인간 생체역학 한계 벗어남) 필터링
+    return cm;
+  }
 
   /// 심박수 드리프트 (Cardiac Drift, %).
   /// 전반부(50%) 평균 심박 vs 후반부(50%) 평균 심박 상승률.

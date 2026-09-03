@@ -25,6 +25,18 @@ void main() {
         steps: null,
       );
       expect(sessionNoSteps.strideCm, isNull);
+
+      // Incomplete/partial step count (e.g. 50 steps for 30min -> cadence 1.6 spm)
+      final sessionPartialSteps = RunSession(
+        id: 'partial-steps',
+        startTime: DateTime(2026, 9, 3, 21),
+        endTime: DateTime(2026, 9, 3, 21, 30),
+        distanceM: 5000,
+        durationSec: 1800,
+        steps: 50,
+      );
+      expect(sessionPartialSteps.cadenceSpm, isNull);
+      expect(sessionPartialSteps.strideCm, isNull);
     });
 
     test('cardiacDriftPct compares first half vs second half average HR', () {

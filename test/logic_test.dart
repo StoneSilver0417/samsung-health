@@ -51,6 +51,12 @@ void main() {
           'com.samsung.health'), isTrue);
       expect(HealthService.sameSource('com.google.fit',
           'com.samsung.health'), isFalse);
+      // Health Connect interval records where sourceId is empty but sourceName has package
+      expect(
+          HealthService.sameSource('', 'com.sec.android.app.shealth',
+              dataSourceName: 'com.sec.android.app.shealth',
+              workoutSourceName: 'com.sec.android.app.shealth'),
+          isTrue);
     });
   });
 
