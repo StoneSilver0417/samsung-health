@@ -68,8 +68,12 @@ class HealthService {
     }
   }
 
-  Future<List<RunSegment>> _fetchSegments(String uuid, DateTime start,
-      DateTime end, List<DistDelta> deltas, List<HrSample> hrSamples) async {
+  Future<(List<RunSegment>, List<RunLap>)> _fetchSessionDetails(
+      String uuid,
+      DateTime start,
+      DateTime end,
+      List<DistDelta> deltas,
+      List<HrSample> hrSamples) async {
     try {
       final raw = await _extra.invokeMethod<List<dynamic>>(
         'getSessionDetails',
@@ -81,7 +85,8 @@ class HealthService {
       for (final s in raw ?? []) {
         final session = Map<String, dynamic>.from(s as Map);
         if (session['uuid'] != uuid) continue;
-        return (session['segments'] as List? ?? [])
+
+        final segments = (session['segments'] as List? ?? [])
             .map((e) => Map<String, dynamic>.from(e as Map))
             .map((m) {
           final segStart = DateTime.fromMillisecondsSinceEpoch(
@@ -96,10 +101,33 @@ class HealthService {
             avgHr: _avgHrBetween(hrSamples, segStart, segEnd),
           );
         }).toList();
+
+        int lapIdx = 1;
+        final laps = (session['laps'] as List? ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .map((m) {
+          final lapStart = DateTime.fromMillisecondsSinceEpoch(
+              (m['startMs'] as num).toInt());
+          final lapEnd = DateTime.fromMillisecondsSinceEpoch(
+              (m['endMs'] as num).toInt());
+          final lengthM = (m['lengthM'] as num?)?.toDouble() ?? 0.0;
+          final dist = lengthM > 0
+              ? lengthM
+              : distanceBetween(deltas, lapStart, lapEnd);
+          return RunLap(
+            lapNumber: lapIdx++,
+            startTime: lapStart,
+            endTime: lapEnd,
+            distanceM: dist,
+            avgHr: _avgHrBetween(hrSamples, lapStart, lapEnd),
+          );
+        }).toList();
+
+        return (segments, laps);
       }
-      return const [];
+      return (const <RunSegment>[], const <RunLap>[]);
     } catch (_) {
-      return const []; // 세그먼트 미지원/미제공 — 1km 스플릿으로 대체 표시
+      return (const <RunSegment>[], const <RunLap>[]);
     }
   }
 
@@ -334,9 +362,9 @@ class HealthService {
             HealthDataType.STEPS, start, end, point.sourceId))
         .round();
 
-    // 인터벌 세그먼트(운동/회복)·상승고도 — 네이티브 채널
-    final segments =
-        await _fetchSegments(point.uuid, start, end, deltas, hrSamples);
+    // 인터벌 세그먼트(운동/회복)·실제 랩·상승고도 — 네이티브 채널
+    final (segments, laps) =
+        await _fetchSessionDetails(point.uuid, start, end, deltas, hrSamples);
     final elevation = await _fetchElevation(start, end, point.sourceId);
 
     final avgHr = hrSamples.isEmpty
@@ -358,6 +386,7 @@ class HealthService {
       steps: steps > 0 ? steps : null,
       elevationM: elevation > 0 ? elevation : null,
       segments: segments,
+      laps: laps,
       splits: computeSplits(start, deltas, hrSamples),
       hrSeries: downsampleHr(hrSamples, const Duration(minutes: 1)),
       sourceName: point.sourceName,

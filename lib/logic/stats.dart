@@ -58,7 +58,19 @@ class StatsSummary {
         weekSec += r.durationSec;
       }
 
-      // PB: 1km 최고 페이스는 스플릿에서, 5km는 5km 이상 세션의 평균 페이스에서
+      // PB: 1km 최고 페이스는 1km 이상 세션의 평균 페이스, 랩 또는 스플릿에서, 5km는 5km 이상 세션의 평균 페이스에서
+      if (r.distanceKm >= 1.0 && r.avgPaceSecPerKm > 0) {
+        if (best1k == null || r.avgPaceSecPerKm < best1k) {
+          best1k = r.avgPaceSecPerKm;
+        }
+      }
+      for (final lap in r.laps) {
+        if (lap.distanceM >= 900 && lap.distanceM <= 1100 && lap.paceSecPerKm > 0) {
+          if (best1k == null || lap.paceSecPerKm < best1k) {
+            best1k = lap.paceSecPerKm;
+          }
+        }
+      }
       for (final s in r.splits) {
         if (s.km == s.km.roundToDouble() && s.paceSecPerKm > 0) {
           if (best1k == null || s.paceSecPerKm < best1k) {

@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-/// km 단위 스플릿. [km]은 누적 km 라벨(부분 km는 소수), [paceSecPerKm]은 해당 구간 환산 페이스.
+/// km 단위 스플릿 (하위 호환 유지).
 class Split {
   final double km;
   final int paceSecPerKm;
@@ -17,6 +17,46 @@ class Split {
   factory Split.fromJson(Map<String, dynamic> json) => Split(
         km: (json['km'] as num).toDouble(),
         paceSecPerKm: (json['paceSecPerKm'] as num).toInt(),
+        avgHr: (json['avgHr'] as num?)?.toDouble(),
+      );
+}
+
+/// 워치 실제 랩 (Health Connect ExerciseLap).
+class RunLap {
+  final int lapNumber;
+  final DateTime startTime;
+  final DateTime endTime;
+  final double distanceM;
+  final double? avgHr;
+
+  const RunLap({
+    required this.lapNumber,
+    required this.startTime,
+    required this.endTime,
+    required this.distanceM,
+    this.avgHr,
+  });
+
+  int get durationSec => endTime.difference(startTime).inSeconds;
+  double get distanceKm => distanceM / 1000;
+  int get paceSecPerKm =>
+      distanceM >= 30 ? (durationSec / (distanceM / 1000)).round() : 0;
+
+  Map<String, dynamic> toJson() => {
+        'num': lapNumber,
+        's': startTime.millisecondsSinceEpoch,
+        'e': endTime.millisecondsSinceEpoch,
+        'distM': distanceM,
+        if (avgHr != null) 'avgHr': avgHr,
+      };
+
+  factory RunLap.fromJson(Map<String, dynamic> json) => RunLap(
+        lapNumber: (json['num'] as num?)?.toInt() ?? 1,
+        startTime:
+            DateTime.fromMillisecondsSinceEpoch((json['s'] as num).toInt()),
+        endTime:
+            DateTime.fromMillisecondsSinceEpoch((json['e'] as num).toInt()),
+        distanceM: (json['distM'] as num?)?.toDouble() ?? 0,
         avgHr: (json['avgHr'] as num?)?.toDouble(),
       );
 }
@@ -94,6 +134,7 @@ class RunSession {
   final int? steps;
   final double? elevationM;
   final List<Split> splits;
+  final List<RunLap> laps;
   final List<RunSegment> segments;
   final List<HrSample> hrSeries;
   final String sourceName;
@@ -110,6 +151,7 @@ class RunSession {
     this.steps,
     this.elevationM,
     this.splits = const [],
+    this.laps = const [],
     this.segments = const [],
     this.hrSeries = const [],
     this.sourceName = '',
@@ -126,6 +168,88 @@ class RunSession {
       ? steps! / (durationSec / 60)
       : null;
 
+  /// 평균 보폭 (cm). 거리와 걸음 수 있을 때 산출.
+  double? get strideCm => (distanceM > 0 && steps != null && steps! > 0)
+      ? (distanceM / steps! * 100)
+      : null;
+
+  /// 심박수 드리프트 (Cardiac Drift, %).
+  /// 전반부(50%) 평균 심박 vs 후반부(50%) 평균 심박 상승률.
+  /// 심박 샘플 4개 이상일 때 산출.
+  double? get cardiacDriftPct {
+    if (hrSeries.length < 4) return null;
+    final mid = hrSeries.length ~/ 2;
+    final firstHalf = hrSeries.sublist(0, mid);
+    final secondHalf = hrSeries.sublist(mid);
+    final avg1 =
+        firstHalf.fold<double>(0, (s, h) => s + h.bpm) / firstHalf.length;
+    final avg2 =
+        secondHalf.fold<double>(0, (s, h) => s + h.bpm) / secondHalf.length;
+    if (avg1 <= 0) return null;
+    return ((avg2 - avg1) / avg1) * 100;
+  }
+
+  /// 유산소(Z1~Z3) vs 무산소(Z4~Z5) 비율 (%).
+  ({double aerobicPct, double anaerobicPct})? get aerobicAnaerobicRatio {
+    if (hrSeries.isEmpty) return null;
+    final max = maxHr ?? 190.0;
+    int aerobicCount = 0;
+    int anaerobicCount = 0;
+    for (final s in hrSeries) {
+      final pct = s.bpm / max;
+      if (pct < 0.8) {
+        aerobicCount++;
+      } else {
+        anaerobicCount++;
+      }
+    }
+    final total = hrSeries.length.toDouble();
+    if (total == 0) return null;
+    return (
+      aerobicPct: (aerobicCount / total) * 100,
+      anaerobicPct: (anaerobicCount / total) * 100,
+    );
+  }
+
+  /// 훈련 부하 지수 (TRIMP 기반 점수).
+  int get trainingLoadScore {
+    if (durationSec <= 0) return 0;
+    final durationMin = durationSec / 60.0;
+    if (hrSeries.isNotEmpty) {
+      final max = maxHr ?? 190.0;
+      double weightedMinutes = 0;
+      for (final s in hrSeries) {
+        final pct = s.bpm / max;
+        double weight;
+        if (pct < 0.6) {
+          weight = 1.0;
+        } else if (pct < 0.7) {
+          weight = 1.5;
+        } else if (pct < 0.8) {
+          weight = 2.2;
+        } else if (pct < 0.9) {
+          weight = 3.5;
+        } else {
+          weight = 5.0;
+        }
+        weightedMinutes += weight;
+      }
+      final avgWeight = weightedMinutes / hrSeries.length;
+      return (durationMin * avgWeight).round();
+    }
+    return (durationMin * 2.0).round();
+  }
+
+  /// 권장 회복 시간 (시간).
+  int get recommendedRecoveryHours {
+    final load = trainingLoadScore;
+    if (load < 30) return 12;
+    if (load < 60) return 18;
+    if (load < 100) return 24;
+    if (load < 150) return 36;
+    return 48;
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'startTime': startTime.millisecondsSinceEpoch,
@@ -138,6 +262,7 @@ class RunSession {
         if (steps != null) 'steps': steps,
         if (elevationM != null) 'elevationM': elevationM,
         'splits': splits.map((s) => s.toJson()).toList(),
+        'laps': laps.map((l) => l.toJson()).toList(),
         'segments': segments.map((s) => s.toJson()).toList(),
         'hrSeries': hrSeries.map((h) => h.toJson()).toList(),
         'sourceName': sourceName,
@@ -158,6 +283,9 @@ class RunSession {
         elevationM: (json['elevationM'] as num?)?.toDouble(),
         splits: (json['splits'] as List? ?? [])
             .map((e) => Split.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+        laps: (json['laps'] as List? ?? [])
+            .map((e) => RunLap.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
         segments: (json['segments'] as List? ?? [])
             .map((e) =>

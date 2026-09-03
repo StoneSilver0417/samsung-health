@@ -255,16 +255,39 @@ class GeminiService {
       final spm = (run.steps! / (run.durationSec / 60)).round();
       buf.writeln('- 총 걸음수: ${run.steps}걸음 (평균 케이던스: ${spm}spm)');
     }
+    if (run.strideCm != null) {
+      buf.writeln('- 평균 보폭: ${run.strideCm!.round()}cm');
+    }
+    if (run.cardiacDriftPct != null) {
+      buf.writeln(
+          '- 심박수 드리프트: ${run.cardiacDriftPct! >= 0 ? '+' : ''}${run.cardiacDriftPct!.toStringAsFixed(1)}% (${run.cardiacDriftPct! < 5.0 ? '지구력 안정적' : run.cardiacDriftPct! <= 10.0 ? '정상 피로' : '심폐 과부하/탈진 주의'})');
+    }
+    final ratio = run.aerobicAnaerobicRatio;
+    if (ratio != null) {
+      buf.writeln(
+          '- 유산소/무산소 비율: 유산소 ${ratio.aerobicPct.round()}% / 무산소 ${ratio.anaerobicPct.round()}%');
+    }
+    buf.writeln(
+        '- 훈련 부하(TRIMP): ${run.trainingLoadScore}pt (권장 회복 휴식: ${run.recommendedRecoveryHours}시간)');
     if (run.elevationM != null && run.elevationM! > 0) {
       buf.writeln('- 획득 고도: ${run.elevationM!.toStringAsFixed(1)}m');
     }
     final hour = run.startTime.hour;
     buf.writeln('- 러닝 시간대: ${run.startTime.hour}시 (${hour >= 21 || hour < 4 ? '야간' : hour < 8 ? '새벽' : '주간'} 러닝)');
 
-    // 스플릿 데이터
-    if (run.splits.isNotEmpty) {
+    // 워치 실제 랩 데이터 (있는 경우)
+    if (run.laps.isNotEmpty) {
       buf.writeln();
-      buf.writeln('[1km 구간별 스플릿]');
+      buf.writeln('[워치 랩 기록]');
+      for (final lap in run.laps) {
+        final hrText =
+            lap.avgHr != null ? ' (평균 ${lap.avgHr!.round()}bpm)' : '';
+        buf.writeln(
+            '- 랩 #${lap.lapNumber} (${lap.distanceKm.toStringAsFixed(2)}km): ${fmtPace(lap.paceSecPerKm)}/km, 소요 ${fmtDuration(lap.durationSec)}$hrText');
+      }
+    } else if (run.splits.isNotEmpty) {
+      buf.writeln();
+      buf.writeln('[구간별 스플릿]');
       for (final s in run.splits) {
         final kmLabel = s.km == s.km.toInt()
             ? '${s.km.toInt()}km'

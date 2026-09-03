@@ -89,31 +89,16 @@ class RunDetailScreen extends ConsumerWidget {
             _sectionTitle('심박존 분포'),
             _hrZones(run),
           ],
+          _sectionTitle('러닝 역학 & 심폐 효율'),
+          _runningDynamicsCard(run),
+          if (run.laps.isNotEmpty) ...[
+            _sectionTitle('워치 랩 기록'),
+            _laps(run),
+          ],
           if (run.segments.isNotEmpty) ...[
             _sectionTitle('인터벌'),
             _segments(run),
           ],
-          if (run.splits.isNotEmpty) ...[
-            _sectionTitle('1km 스플릿'),
-            _splits(run),
-            if (_allSamePace(run))
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Text(
-                  '삼성헬스가 거리 시계열을 제공하지 않아 평균 페이스로 표시됩니다',
-                  style: kMetricLabelStyle,
-                ),
-              ),
-          ] else if (run.segments.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Text(
-                run.sourceName == 'manual'
-                    ? '수동으로 추가한 기록입니다 — 구간 데이터가 없습니다'
-                    : '구간 데이터 없음 — 삼성헬스가 거리 시계열을 제공하지 않은 세션입니다',
-                style: kMetricLabelStyle,
-              ),
-            ),
         ],
       ),
     );
@@ -124,12 +109,6 @@ class RunDetailScreen extends ConsumerWidget {
       if (run.id == id) return run;
     }
     return null;
-  }
-
-  static bool _allSamePace(RunSession run) {
-    final splits = run.splits;
-    if (splits.length < 2) return false;
-    return splits.every((s) => s.paceSecPerKm == splits.first.paceSecPerKm);
   }
 
   Widget _sectionTitle(String t) => Padding(
@@ -402,72 +381,307 @@ class RunDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _splits(RunSession run) {
-    final maxPace = run.splits
-        .map((s) => s.paceSecPerKm)
-        .reduce((a, b) => a > b ? a : b)
-        .toDouble();
+  Widget _runningDynamicsCard(RunSession run) {
+    final stride = run.strideCm;
+    final drift = run.cardiacDriftPct;
+    final ratio = run.aerobicAnaerobicRatio;
+    final load = run.trainingLoadScore;
+    final recovery = run.recommendedRecoveryHours;
+
+    String strideLabel = '걸음 데이터 없음';
+    if (stride != null) {
+      if (stride < 85) {
+        strideLabel = '짧은 보폭 (케이던스 위주)';
+      } else if (stride <= 115) {
+        strideLabel = '효율적이고 안정적인 보폭';
+      } else {
+        strideLabel = '긴 보폭 (오버스트라이드 주의)';
+      }
+    }
+
+    String driftLabel = '심박 데이터 부족';
+    Color driftColor = AppColors.textSecondary;
+    if (drift != null) {
+      if (drift < 5.0) {
+        driftLabel = '심폐 지구력 안정적 (우수)';
+        driftColor = AppColors.neon;
+      } else if (drift <= 10.0) {
+        driftLabel = '정상 피로도 누적';
+        driftColor = const Color(0xFFFFB23D);
+      } else {
+        driftLabel = '심폐 과부하 / 탈진 주의';
+        driftColor = AppColors.danger;
+      }
+    }
+
+    String loadLabel = '가벼운 회복 세션';
+    if (load >= 150) {
+      loadLabel = '극심한 한계 훈련';
+    } else if (load >= 100) {
+      loadLabel = '고강도 체력 향상 세션';
+    } else if (load >= 60) {
+      loadLabel = '최적 발전 트레이닝';
+    } else if (load >= 30) {
+      loadLabel = '유산소 유지 트레이닝';
+    }
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         child: Column(
-          children: run.splits.map((s) {
-            final isPartial = s.km != s.km.roundToDouble();
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('평균 보폭 (Stride)', style: kMetricLabelStyle),
+                        const SizedBox(height: 6),
+                        Text(
+                          stride != null ? '${stride.round()} cm' : '—',
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          strideLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: stride != null
+                                ? AppColors.neonDim
+                                : AppColors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.03),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('심박 드리프트 (피로도)', style: kMetricLabelStyle),
+                        const SizedBox(height: 6),
+                        Text(
+                          drift != null
+                              ? '${drift >= 0 ? '+' : ''}${drift.toStringAsFixed(1)}%'
+                              : '—',
+                          style: TextStyle(
+                            color: driftColor,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          driftLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: driftColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (ratio != null) ...[
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('훈련 성격 분석', style: kMetricLabelStyle),
+                  Text(
+                    '유산소 ${ratio.aerobicPct.round()}%  •  무산소 ${ratio.anaerobicPct.round()}%',
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: SizedBox(
+                  height: 12,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: (ratio.aerobicPct * 10).round().clamp(1, 1000),
+                        child: Container(color: const Color(0xFF4AD9A5)),
+                      ),
+                      if (ratio.anaerobicPct > 0)
+                        Expanded(
+                          flex:
+                              (ratio.anaerobicPct * 10).round().clamp(1, 1000),
+                          child: Container(color: const Color(0xFFFFB23D)),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.03),
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Row(
                 children: [
-                  SizedBox(
-                    width: 44,
-                    child: Text(
-                      isPartial ? s.km.toStringAsFixed(2) : '${s.km.toInt()}',
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w700),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.neon.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
                     ),
+                    child:
+                        const Icon(Icons.bolt, color: AppColors.neon, size: 20),
                   ),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        // 빠른 페이스일수록 긴 막대
-                        value: maxPace > 0
-                            ? (2 - s.paceSecPerKm / maxPace).clamp(0.15, 1.0)
-                            : 0,
-                        minHeight: 14,
-                        backgroundColor: Colors.white.withValues(alpha: 0.05),
-                        color: AppColors.neon,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 52,
-                    child: Text(fmtPace(s.paceSecPerKm),
-                        textAlign: TextAlign.end,
-                        style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w700)),
-                  ),
-                  SizedBox(
-                    width: 50,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (s.avgHr != null) ...[
-                          const Icon(Icons.favorite,
-                              size: 11, color: AppColors.danger),
-                          const SizedBox(width: 3),
-                          Text('${s.avgHr!.round()}',
-                              style: kMetricLabelStyle),
-                        ],
+                        Row(
+                          children: [
+                            Text(
+                              '훈련 부하 $load pt',
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '($loadLabel)',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '권장 회복 휴식: 약 $recovery시간',
+                          style: const TextStyle(
+                            color: AppColors.neonDim,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
-            );
-          }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _laps(RunSession run) {
+    const headerStyle = TextStyle(
+        color: AppColors.textSecondary,
+        fontSize: 12,
+        fontWeight: FontWeight.w700);
+    const rowStyle = TextStyle(
+        color: AppColors.textPrimary,
+        fontSize: 13,
+        fontWeight: FontWeight.w600);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const Row(
+              children: [
+                SizedBox(width: 36, child: Text('랩', style: headerStyle)),
+                Expanded(
+                    child: Text('시간',
+                        textAlign: TextAlign.end, style: headerStyle)),
+                Expanded(
+                    child: Text('거리',
+                        textAlign: TextAlign.end, style: headerStyle)),
+                Expanded(
+                    child: Text('페이스',
+                        textAlign: TextAlign.end, style: headerStyle)),
+                Expanded(
+                    child: Text('심박',
+                        textAlign: TextAlign.end, style: headerStyle)),
+              ],
+            ),
+            const Divider(color: Colors.white12, height: 16),
+            ...run.laps.map((lap) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 36,
+                      child: Text(
+                        '#${lap.lapNumber}',
+                        style: const TextStyle(
+                            color: AppColors.neon,
+                            fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    Expanded(
+                        child: Text(fmtDuration(lap.durationSec),
+                            textAlign: TextAlign.end, style: rowStyle)),
+                    Expanded(
+                        child: Text(
+                            '${lap.distanceKm.toStringAsFixed(2)} km',
+                            textAlign: TextAlign.end,
+                            style: rowStyle)),
+                    Expanded(
+                        child: Text(
+                            lap.paceSecPerKm > 0
+                                ? fmtPace(lap.paceSecPerKm)
+                                : '—',
+                            textAlign: TextAlign.end,
+                            style: rowStyle)),
+                    Expanded(
+                        child: Text(
+                            lap.avgHr != null
+                                ? '${lap.avgHr!.round()} bpm'
+                                : '—',
+                            textAlign: TextAlign.end,
+                            style: rowStyle)),
+                  ],
+                ),
+              );
+            }),
+          ],
         ),
       ),
     );

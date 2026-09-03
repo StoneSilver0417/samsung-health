@@ -84,9 +84,13 @@ void main() {
     final prompt = GeminiService.buildPrompt(run, recent);
 
     // Splits
-    expect(prompt, contains('[1km 구간별 스플릿]'));
+    expect(prompt, contains('[구간별 스플릿]'));
     expect(prompt, contains('1km: 6\'00"/km (평균 140bpm)'));
     expect(prompt, contains('2km: 5\'55"/km (평균 145bpm)'));
+
+    // Stride & Dynamics
+    expect(prompt, contains('평균 보폭: 104cm'));
+    expect(prompt, contains('훈련 부하(TRIMP)'));
 
     // Cadence & Elevation
     expect(prompt, contains('160spm'));
