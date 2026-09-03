@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-09-02 (v1.8.0 — 신규 업적 8종 추가 & 배지 시스템 확장)
+
+### 기능 추가
+- **신규 업적 8종 (총 33종 배지 체계)**:
+  - `first_3k` (거리): 3K 피니셔 (단일 3km 이상 달리기)
+  - `first_full` (거리): 풀 마라토너 (단일 42.195km 이상 달리기)
+  - `total_2000k` (누적 거리): 누적 2,000km 클럽 달성
+  - `streak_12w` (스트릭): 12주 연속 주 3회 러닝 스트릭 달성
+  - `month_15runs` (스트릭): 월 15회 이상 러닝 달성
+  - `speed_sub5` (스페셜): 서브 5 스피드스터 (평균 페이스 5분/km 이하 달성)
+  - `calorie_1000` (스페셜): 칼로리 버너 (단일 세션 1,000kcal 이상 소모)
+  - `consecutive_2days` (스페셜): 투데이 러너 (이틀 연속 러닝 달성)
+- `tools/badges.html`: 신규 8종 배지 SVG 템플릿 추가
+- `lib/models/achievement.dart`: `kBadges` 33종 배지 정의 등록
+- `lib/logic/achievement_engine.dart`: `evaluate()`에 8종 업적 판정 로직 추가
+- `test/achievement_engine_test.dart`: 8종 업적 판정 단위 테스트 추가
+
 ## 2026-09-02 (v1.7.2 — 분석 탭 다음 목표 AI 구조화 & 코칭 가이드 강화)
 
 ### 기능 개선
