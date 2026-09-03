@@ -29,9 +29,11 @@ class AchievementEngine {
     earn('first_run',
         runId: allRuns.first.id, earnedAt: allRuns.first.startTime);
     for (final r in allRuns) {
+      if (r.distanceKm >= 3) earn('first_3k', runId: r.id, earnedAt: r.startTime);
       if (r.distanceKm >= 5) earn('first_5k', runId: r.id, earnedAt: r.startTime);
       if (r.distanceKm >= 10) earn('first_10k', runId: r.id, earnedAt: r.startTime);
       if (r.distanceKm >= 21.1) earn('first_half', runId: r.id, earnedAt: r.startTime);
+      if (r.distanceKm >= 42.195) earn('first_full', runId: r.id, earnedAt: r.startTime);
     }
 
     // ── 누적 거리: 임계값을 처음 넘은 러닝 날짜 사용
@@ -43,6 +45,7 @@ class AchievementEngine {
       if (cumKm >= 250) earn('total_250k', earnedAt: r.startTime);
       if (cumKm >= 500) earn('total_500k', earnedAt: r.startTime);
       if (cumKm >= 1000) earn('total_1000k', earnedAt: r.startTime);
+      if (cumKm >= 2000) earn('total_2000k', earnedAt: r.startTime);
     }
 
     // ── 러닝 횟수: n번째 러닝 날짜 사용 (0-indexed)
@@ -93,8 +96,12 @@ class AchievementEngine {
       earn('streak_8w',
           earnedAt: _streakEndDate(weekly, allRuns, 8));
     }
+    if (maxStreak >= 12) {
+      earn('streak_12w',
+          earnedAt: _streakEndDate(weekly, allRuns, 12));
+    }
 
-    // month_10runs: 월 10회를 최초 달성한 달의 10번째 러닝 날짜
+    // month_10runs / month_15runs: 월 n회를 최초 달성한 달의 n번째 러닝 날짜
     final monthly = <String, List<RunSession>>{};
     for (final r in allRuns) {
       final key = '${r.startTime.year}-${r.startTime.month.toString().padLeft(2, '0')}';
@@ -105,6 +112,21 @@ class AchievementEngine {
       final runs = monthly[key]!;
       if (runs.length >= 10) {
         earn('month_10runs', earnedAt: runs[9].startTime);
+      }
+      if (runs.length >= 15) {
+        earn('month_15runs', earnedAt: runs[14].startTime);
+      }
+    }
+
+    // ── consecutive_2days: 연속 2일 달리기 (calendar day 기준 어제/오늘 러닝)
+    for (var i = 1; i < allRuns.length; i++) {
+      final prevDay = DateTime(allRuns[i - 1].startTime.year,
+          allRuns[i - 1].startTime.month, allRuns[i - 1].startTime.day);
+      final currDay = DateTime(allRuns[i].startTime.year,
+          allRuns[i].startTime.month, allRuns[i].startTime.day);
+      if (currDay.difference(prevDay).inDays == 1) {
+        earn('consecutive_2days',
+            runId: allRuns[i].id, earnedAt: allRuns[i].startTime);
         break;
       }
     }
@@ -139,6 +161,16 @@ class AchievementEngine {
           r.avgPaceSecPerKm > 0 &&
           r.avgPaceSecPerKm <= 360) {
         earn('speed_sub6', runId: r.id, earnedAt: r.startTime);
+      }
+      // 평균 페이스 5분/km(300초) 이하
+      if (r.distanceKm >= 1 &&
+          r.avgPaceSecPerKm > 0 &&
+          r.avgPaceSecPerKm <= 300) {
+        earn('speed_sub5', runId: r.id, earnedAt: r.startTime);
+      }
+      // 단일 러닝 1000kcal 이상 소모
+      if (r.calories != null && r.calories! >= 1000) {
+        earn('calorie_1000', runId: r.id, earnedAt: r.startTime);
       }
     }
 

@@ -49,13 +49,18 @@ class EarnedBadge {
       );
 }
 
-/// 전체 배지 25종
+/// 전체 배지 33종
 const List<BadgeDef> kBadges = [
   // 거리 (단일 세션)
   BadgeDef(
       id: 'first_run',
       title: '첫 발걸음',
       description: '첫 러닝 기록',
+      category: BadgeCategory.distance),
+  BadgeDef(
+      id: 'first_3k',
+      title: '3K 피니셔',
+      description: '한 번에 3km 달리기',
       category: BadgeCategory.distance),
   BadgeDef(
       id: 'first_5k',
@@ -71,6 +76,11 @@ const List<BadgeDef> kBadges = [
       id: 'first_half',
       title: '하프 마라토너',
       description: '한 번에 21.1km 달리기',
+      category: BadgeCategory.distance),
+  BadgeDef(
+      id: 'first_full',
+      title: '풀 마라토너',
+      description: '한 번에 42.195km 달리기',
       category: BadgeCategory.distance),
   // 누적 거리
   BadgeDef(
@@ -97,6 +107,11 @@ const List<BadgeDef> kBadges = [
       id: 'total_1000k',
       title: '누적 1000K',
       description: '누적 거리 1000km',
+      category: BadgeCategory.total),
+  BadgeDef(
+      id: 'total_2000k',
+      title: '누적 2000K',
+      description: '누적 거리 2000km',
       category: BadgeCategory.total),
   // 러닝 횟수
   BadgeDef(
@@ -157,9 +172,19 @@ const List<BadgeDef> kBadges = [
       description: '8주 연속 주 3회 러닝',
       category: BadgeCategory.streak),
   BadgeDef(
+      id: 'streak_12w',
+      title: '12주 스트릭',
+      description: '12주 연속 주 3회 러닝',
+      category: BadgeCategory.streak),
+  BadgeDef(
       id: 'month_10runs',
       title: '월간 개근',
       description: '한 달에 10회 러닝',
+      category: BadgeCategory.streak),
+  BadgeDef(
+      id: 'month_15runs',
+      title: '월간 열정러',
+      description: '한 달에 15회 러닝',
       category: BadgeCategory.streak),
   // 스페셜
   BadgeDef(
@@ -178,8 +203,23 @@ const List<BadgeDef> kBadges = [
       description: '주말(토·일) 러닝 10회',
       category: BadgeCategory.special),
   BadgeDef(
+      id: 'consecutive_2days',
+      title: '투데이 러너',
+      description: '2일 연속 러닝 달성',
+      category: BadgeCategory.special),
+  BadgeDef(
       id: 'speed_sub6',
       title: '스피드스터',
       description: '평균 페이스 6분/km 이하 달성',
+      category: BadgeCategory.special),
+  BadgeDef(
+      id: 'speed_sub5',
+      title: '서브5 스피드스터',
+      description: '평균 페이스 5분/km 이하 달성',
+      category: BadgeCategory.special),
+  BadgeDef(
+      id: 'calorie_1000',
+      title: '칼로리 버너',
+      description: '단일 러닝 1000kcal 이상 소모',
       category: BadgeCategory.special),
 ];
