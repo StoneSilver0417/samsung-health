@@ -21,4 +21,11 @@ void main() {
       throwsA(isA<StateError>()),
     );
   });
+
+  test('Hive encryption key rejects invalid base64 format', () {
+    expect(
+      () => HiveRunRepository.decodeEncryptionKey('invalid!!base64=='),
+      throwsA(isA<StateError>()),
+    );
+  });
 }

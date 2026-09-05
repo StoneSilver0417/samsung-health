@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-05 (5단계 Repository 책임 분할 & 세분화된 Store 아키텍처 도입)
+
+### Repository 책임 분할 (Single Responsibility Principle) & Store 모듈화
+- **`RunStore` 신설 (`lib/repositories/stores/run_store.dart`)**:
+  - 러닝 기록 CRUD(`getAll`, `getById`, `upsertAll`, `delete`), VO2max 시계열(`getVo2Series`, `saveVo2Series`), 동기화 제외 ID(`getIgnoredIds`, `addIgnoredIds`, `removeIgnoredIds`), 동기화 시각(`lastSyncedAt`, `setLastSyncedAt`) 영속화 전담
+- **`AchievementStore` 신설 (`lib/repositories/stores/achievement_store.dart`)**:
+  - 획득 업적 및 배지(`getEarnedBadges`, `saveEarnedBadges`, `clear`) 영속화 전담
+- **`SettingsStore` 신설 (`lib/repositories/stores/settings_store.dart`)**:
+  - Android Keystore 기반 Gemini API 키(`getGeminiApiKey`, `setGeminiApiKey`), 세션별 AI 요약 캐시(`getAiSummary`, `saveAiSummary`), AI 목표 추천 캐시(`getGoalRecommendation`, `saveGoalRecommendation`, `getGoalRecommendedAt`), 캐시 정리(`clearCache`) 전담
+- **`RunRepository` 파사드(Facade) 슬림화 & 100% 하위 호환성 보장 (`lib/repositories/run_repository.dart` & `lib/data/run_repository.dart`)**:
+  - `RunRepository` 인터페이스를 통해 기존의 모든 메서드 시그니처 100% 유지 및 위임
+  - `HiveRunRepository`가 `RunStore`, `AchievementStore`, `SettingsStore`를 주입받아 조율(Coordination)하고 `clear()` 호출 시 원자적 복합 클리어 수행
+  - `lib/data/run_repository.dart`에서 `repositories/run_repository.dart`를 re-export하여 기존 import 경로와의 완벽한 하위 호환 제공
+
+### 테스트 및 품질 안정화
+- **신규 단위 테스트 추가 (`test/repository_stores_test.dart`)**:
+  - `RunStore` CRUD/정렬/제외ID/VO2max/초기화 단위 테스트 6종
+  - `AchievementStore` 배지 저장/조회/초기화 단위 테스트 1종
+  - `SettingsStore` API 키/AI 요약/목표 추천/캐시 클리어 단위 테스트 4종
+  - `RunRepository` Facade 조율 및 위임/복합 클리어/Store 게터 단위 테스트 2종
+  - `test/run_repository_test.dart` Base64 포맷 예외 검증 테스트 추가 (총 14종 신규/강화 테스트)
+- **전체 테스트 156종 100% 통과 (`flutter test` 156/156 PASS, `flutter analyze` 0 issues)**
+
 ## 2026-09-05 (4단계 서비스 및 저장소 최적화 — Health Connect 벌크 쿼리 & Gemini 파이프라인 정비)
 
 ### Health Connect 서비스 쿼리 성능 최적화 및 헬퍼 분리 (`lib/services/health/`)

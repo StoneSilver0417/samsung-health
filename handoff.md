@@ -2,7 +2,14 @@
 
 ## 현재 상태
 
-- **버전**: v1.8.3+28 — 4단계 서비스 및 저장소 최적화 (Health Connect 벌크 쿼리 & Gemini 파이프라인 정비) 완료 (테스트 142종 확보) (2026-09-05)
+- **버전**: v1.8.3+28 — 5단계 Repository 책임 분할 (SRP Store 아키텍처 & Facade 정비) 완료 (테스트 156종 확보) (2026-09-05)
+- **저장소 계층 모듈화 & SRP 구조**:
+  - `lib/repositories/stores/`:
+    - `run_store.dart`: `RunStore` / `HiveRunStore` (러닝 기록 CRUD, VO2max 시계열, 동기화 제외 ID, 동기화 시각 영속화 전담)
+    - `achievement_store.dart`: `AchievementStore` / `HiveAchievementStore` (획득 업적/배지 영속화 전담)
+    - `settings_store.dart`: `SettingsStore` / `HiveSettingsStore` (Gemini API 키, 세션별 AI 요약 캐시, 목표 추천 캐시 및 캐시 클리어 전담)
+  - `lib/repositories/run_repository.dart`: `RunStore`, `AchievementStore`, `SettingsStore`를 주입받아 조율하는 슬림화된 Facade 및 100% 하위 호환성 제공
+  - `lib/data/run_repository.dart`: 기존 import 경로와의 100% 하위 호환 re-export
 - **서비스 계층 모듈화 & 최적화**:
   - `lib/services/health/`:
     - `health_data_matcher.dart`: Bulk 쿼리 데이터 인메모리 매칭, 스플릿 산출(`computeSplits`), 다운샘플링(`downsampleHr`), 세션 조립(`buildRunSession`)
@@ -30,12 +37,13 @@
   - **훈련 부하(TRIMP) & 권장 회복 시간**: 심박존 가중치 기반 트레이닝 로드 및 회복 시간(h) 산출
   - **워치 랩 (Laps)**: 워치 Auto-Lap / 수동 랩 실제 기록 시에만 노출
 - **업적 배지 체계**: 총 33종
-- **빌드/테스트 상태**: `flutter test` 142/142 PASS, `flutter analyze` 0 issues (No issues found)
+- **빌드/테스트 상태**: `flutter test` 156/156 PASS, `flutter analyze` 0 issues (No issues found)
 
 ## 최근 작업 이력
 
 | 버전 | 내용 |
 |---|---|
+| `v1.8.3` (저장소 분할) | 5단계 Repository 책임 분할: RunRepository 과중 책임 분리, `lib/repositories/stores/` (`run_store.dart`, `achievement_store.dart`, `settings_store.dart`) 모듈화, `RunRepository` Facade 경량화 및 100% 하위 호환성 유지, 단위 테스트 14종 추가 (총 156개 테스트 통과) |
 | `v1.8.3` (서비스 최적화) | 4단계 서비스 및 저장소 최적화: Health Connect 세션별 반복 Sequential 쿼리 제거 및 기간 단위 Bulk 쿼리(readRecords) + In-memory 매칭 전환, Health Connect Sub-service/Helper 분리 (`lib/services/health/`), Gemini Typed DTO (`gemini_dto.dart`), Prompt Builder (`gemini_prompt_builder.dart`), HTTP Engine (`gemini_http_client.dart`) 분리 및 단위 테스트 15종 추가 (총 142개 테스트 통과) |
 | `v1.8.3` (UI 모듈화) | 3단계 대형 UI 화면 분할 및 모듈화: analysis_screen.dart (182줄) 및 run_detail_screen.dart (116줄) 300줄 미만 경량화, sub-widgets 디렉터리 분리, modular_widgets_test 추가 (총 127개 테스트 통과) |
 | `v1.8.3` (디자인 토큰) | 2단계 디자인 토큰 체계화: DESIGN.md 규칙 수립, ThemeExtension 기반 AppDesignTokens 및 AppTheme 도입, 전 UI 컴포넌트 토큰화, 표면 깊이 다변화, a11y Semantics 및 4.5:1+ 대비비 강화, design_tokens_test 추가 (총 112개 테스트 통과) |
