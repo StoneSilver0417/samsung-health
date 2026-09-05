@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
+import '../../../core/theme/app_design_tokens.dart';
 import '../../../logic/stats.dart';
 import '../../../models/run_session.dart';
 import '../../../providers.dart';
 import '../../../services/gemini_service.dart';
 import '../../settings_screen.dart';
-import '../../theme.dart';
 
-/// 누적·월간 기록을 바탕으로 다음 1~2주 목표를 생성하고 기기 로컬에 캐시한다.
 class GoalRecommendCard extends ConsumerStatefulWidget {
   final StatsSummary stats;
   final MonthlyStats monthly;
@@ -29,7 +27,6 @@ class GoalRecommendCard extends ConsumerStatefulWidget {
 class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
   final _service = GeminiService();
   String? _recommendation;
-  DateTime? _recommendedAt;
   bool _loading = false;
   String? _error;
 
@@ -38,23 +35,26 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
     super.initState();
     final repo = ref.read(repoProvider);
     _recommendation = repo.getGoalRecommendation();
-    _recommendedAt = repo.getGoalRecommendedAt();
   }
 
   Future<void> _generate() async {
     final repo = ref.read(repoProvider);
     final apiKey = repo.getGeminiApiKey();
-    if (apiKey == null || apiKey.isEmpty) {
+
+    if (apiKey == null || apiKey.trim().isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('설정에서 Gemini API 키를 먼저 입력하세요'),
+          content: const Text('Gemini API 키가 필요합니다.'),
           action: SnackBarAction(
-            label: '설정으로',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
+            label: '설정',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const SettingsScreen(),
+                ),
+              );
+            },
           ),
         ),
       );
@@ -65,6 +65,7 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
       _loading = true;
       _error = null;
     });
+
     try {
       final text = await _service.recommendGoal(
         apiKey,
@@ -77,7 +78,6 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
       if (!mounted) return;
       setState(() {
         _recommendation = text;
-        _recommendedAt = generatedAt;
       });
     } catch (e) {
       if (!mounted) return;
@@ -87,9 +87,87 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
     }
   }
 
+  void _showFullGoalModal(BuildContext context, String text) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.cardElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: AppRadius.bottomSheetTop,
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.65,
+          maxChildSize: 0.85,
+          minChildSize: 0.4,
+          builder: (_, controller) {
+            return Container(
+              padding: AppSpacing.bottomSheetPadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: AppSpacing.s16),
+                      decoration: const BoxDecoration(
+                        color: AppColors.textTertiary,
+                        borderRadius: AppRadius.brFull,
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(Icons.flag, color: AppColors.neon, size: 22),
+                      AppSpacing.gapW8,
+                      const Text(
+                        'AI 맞춤 다음 목표 가이드',
+                        style: AppTypography.titleMedium,
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close,
+                            color: AppColors.textSecondary),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const Divider(color: AppColors.borderSubtle, height: 24),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: controller,
+                      child: Text(
+                        text,
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                          height: 1.6,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final apiKey = ref.watch(repoProvider).getGeminiApiKey();
+    final hasKey = apiKey != null && apiKey.trim().isNotEmpty;
+
+    return Container(
+      margin: AppSpacing.cardMargin,
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: AppRadius.br16,
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
       child: Padding(
         padding: AppSpacing.cardPadding,
         child: Column(
@@ -98,68 +176,117 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
             Row(
               children: [
                 const Icon(
-                  Icons.auto_awesome,
-                  size: AppIconSizes.sm,
+                  Icons.flag,
                   color: AppColors.neon,
+                  size: AppIconSizes.standard,
                 ),
-                AppSpacing.gapW6,
+                AppSpacing.gapW8,
                 const Text(
-                  '다음 목표',
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  '다음 목표 AI 제안',
+                  style: AppTypography.titleSmall,
                 ),
                 const Spacer(),
-                if (_loading)
-                  const SizedBox(
-                    width: AppIconSizes.sm,
-                    height: AppIconSizes.sm,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  TextButton(
+                if (hasKey && !_loading)
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: AppIconSizes.sm),
+                    color: AppColors.textSecondary,
+                    tooltip: '목표 다시 생성',
                     onPressed: _generate,
-                    child: Text(_recommendation == null ? '생성' : '다시 생성'),
                   ),
               ],
             ),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.s8),
-                child: Text(
+            AppSpacing.gapH12,
+            if (!hasKey) ...[
+              const Text(
+                'Gemini API 키를 설정하면 최근 기록을 바탕으로 다음 목표를 추천받을 수 있습니다.',
+                style: AppTypography.bodySmall,
+              ),
+              AppSpacing.gapH8,
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SettingsScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.key, size: AppIconSizes.sm),
+                label: const Text('API 키 설정하기'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.neon,
+                ),
+              ),
+            ] else if (_loading) ...[
+              const Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.neon,
+                    ),
+                  ),
+                  AppSpacing.gapW12,
+                  Text(
+                    'AI가 다음 목표를 계산하는 중입니다...',
+                    style: AppTypography.bodySmall,
+                  ),
+                ],
+              ),
+            ] else if (_recommendation != null) ...[
+              Text(
+                _recommendation!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.bodyMedium,
+              ),
+              AppSpacing.gapH12,
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _showFullGoalModal(
+                    context,
+                    _recommendation!,
+                  ),
+                  icon: const Icon(Icons.open_in_new, size: AppIconSizes.sm),
+                  label: const Text('상세 목표 팝업으로 보기'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.neon,
+                    side: const BorderSide(
+                      color: AppColors.borderFocused,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadius.br8,
+                    ),
+                  ),
+                ),
+              ),
+            ] else ...[
+              const Text(
+                '아직 추천된 목표가 없습니다.',
+                style: AppTypography.bodySmall,
+              ),
+              if (_error != null) ...[
+                AppSpacing.gapH8,
+                Text(
                   _error!,
-                  style: const TextStyle(
+                  style: AppTypography.bodySmall.copyWith(
                     color: AppColors.danger,
-                    fontSize: 12,
                   ),
                 ),
-              )
-            else if (_recommendation != null) ...[
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.s10),
-                child: Text(
-                  _recommendation!,
-                  style: AppTypography.bodyMedium,
+              ],
+              AppSpacing.gapH12,
+              ElevatedButton.icon(
+                onPressed: _generate,
+                icon: const Icon(Icons.auto_awesome, size: AppIconSizes.sm),
+                label: const Text('목표 추천받기'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.neon,
+                  foregroundColor: AppColors.textOnNeon,
                 ),
               ),
-              if (_recommendedAt != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.s8),
-                  child: Text(
-                    '${DateFormat('M/d HH:mm').format(_recommendedAt!)} 생성',
-                    style: AppTypography.metricLabel,
-                  ),
-                ),
-            ] else if (!_loading)
-              const Padding(
-                padding: EdgeInsets.only(top: AppSpacing.s6),
-                child: Text(
-                  '버튼을 눌러 다음 1~2주 러닝 목표를 추천받아보세요',
-                  style: AppTypography.metricLabel,
-                ),
-              ),
+            ],
           ],
         ),
       ),

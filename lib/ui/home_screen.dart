@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../logic/stats.dart';
+import '../models/run_session.dart';
 import '../providers.dart';
+import '../services/gemini_service.dart';
 import '../services/update_service.dart';
 import 'debug_screen.dart';
 import 'import_screen.dart';
@@ -186,6 +188,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         backgroundColor: AppColors.neonDim,
         duration: const Duration(seconds: 4),
       ));
+    }
+
+    final apiKey = ref.read(repoProvider).getGeminiApiKey();
+    if (apiKey != null && apiKey.isNotEmpty && result.addedRuns.isNotEmpty) {
+      _autoGenerateAiReportForNewRuns(result.addedRuns, apiKey);
+    }
+  }
+
+  void _autoGenerateAiReportForNewRuns(
+      List<RunSession> addedRuns, String apiKey) async {
+    final today = DateTime.now();
+    final todayRuns = addedRuns.where((r) {
+      final d = r.startTime;
+      return d.year == today.year &&
+          d.month == today.month &&
+          d.day == today.day;
+    }).toList();
+
+    if (todayRuns.isEmpty) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('🤖 새 당일 러닝에 대한 AI 요약 보고서를 생성하고 있습니다...'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+
+    final repo = ref.read(repoProvider);
+    final geminiService = GeminiService();
+    final allRuns = await repo.getAll();
+
+    for (final run in todayRuns) {
+      final existing = repo.getAiSummary(run.id);
+      if (existing != null && existing.isNotEmpty) continue;
+
+      try {
+        final recentRuns =
+            allRuns.where((r) => r.id != run.id).take(5).toList();
+        final summary = await geminiService.summarizeRun(
+          apiKey,
+          run,
+          recentRuns,
+        );
+        await repo.saveAiSummary(run.id, summary);
+      } catch (_) {}
     }
   }
 

@@ -21,7 +21,13 @@ class SyncResult {
   final int addedCount;
   final List<BadgeDef> newBadges;
   final String? error;
-  const SyncResult({this.addedCount = 0, this.newBadges = const [], this.error});
+  final List<RunSession> addedRuns;
+  const SyncResult({
+    this.addedCount = 0,
+    this.newBadges = const [],
+    this.error,
+    this.addedRuns = const [],
+  });
 }
 
 class RunsNotifier extends AsyncNotifier<List<RunSession>> {
@@ -66,7 +72,11 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
             await AchievementEngine(repo).evaluate(all.reversed.toList());
 
         state = AsyncData(all);
-        return SyncResult(addedCount: added.length, newBadges: newBadges);
+        return SyncResult(
+          addedCount: added.length,
+          newBadges: newBadges,
+          addedRuns: added,
+        );
       } catch (e) {
         return SyncResult(error: '동기화 실패: $e');
       }
