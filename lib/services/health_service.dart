@@ -1,17 +1,20 @@
-import 'package:flutter/services.dart';
 import 'package:health/health.dart';
 
 import '../models/run_session.dart';
+import 'health/health_data_matcher.dart';
+import 'health/native_health_channel.dart';
+
+export 'health/health_data_matcher.dart' show DistDelta, HealthDataMatcher;
+export 'health/native_health_channel.dart'
+    show NativeHealthChannel, NativeSessionDetail, NativeRawSegment, NativeRawLap;
 
 /// Health Connect에서 러닝 세션을 읽어 RunSession으로 변환하는 서비스.
 ///
 /// 삼성헬스 → Health Connect 동기화가 활성화되어 있어야 한다
 /// (삼성헬스 설정 > 헬스 커넥트 > 데이터 동기화 켜기).
 class HealthService {
-  final Health _health = Health();
-
-  /// health 패키지 미지원 데이터(세그먼트/고도/VO2max)용 네이티브 채널
-  static const _extra = MethodChannel('runlog/hc_extra');
+  final Health _health;
+  final NativeHealthChannel _nativeChannel;
 
   static const List<HealthDataType> _types = [
     HealthDataType.WORKOUT,
@@ -20,6 +23,12 @@ class HealthService {
     HealthDataType.TOTAL_CALORIES_BURNED,
     HealthDataType.STEPS,
   ];
+
+  HealthService({
+    Health? health,
+    NativeHealthChannel? nativeChannel,
+  })  : _health = health ?? Health(),
+        _nativeChannel = nativeChannel ?? const NativeHealthChannel();
 
   Future<void> configure() => _health.configure();
 
@@ -34,137 +43,15 @@ class HealthService {
   }
 
   /// 고도·VO2max 읽기 권한 (네이티브 컨트랙트). 실패해도 동기화는 계속.
-  Future<bool> requestExtraPermissions() async {
-    try {
-      return await _extra.invokeMethod<bool>('requestExtraPermissions') ??
-          false;
-    } catch (_) {
-      return false;
-    }
-  }
+  Future<bool> requestExtraPermissions() =>
+      _nativeChannel.requestExtraPermissions();
 
   /// VO2max 시계열 (체력 추세용). 삼성헬스가 동기화 안 하면 빈 리스트.
   Future<List<(DateTime, double)>> fetchVo2Series(
-      DateTime start, DateTime end) async {
-    try {
-      final raw = await _extra.invokeMethod<List<dynamic>>(
-        'getVo2MaxSeries',
-        {
-          'startMs': start.millisecondsSinceEpoch,
-          'endMs': end.millisecondsSinceEpoch,
-        },
-      );
-      return (raw ?? [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .map((m) => (
-                DateTime.fromMillisecondsSinceEpoch(
-                    (m['timeMs'] as num).toInt()),
-                (m['value'] as num).toDouble(),
-              ))
-          .toList()
-        ..sort((a, b) => a.$1.compareTo(b.$1));
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  Future<(List<RunSegment>, List<RunLap>, int?)> _fetchSessionDetails(
-      String uuid,
-      DateTime start,
-      DateTime end,
-      List<DistDelta> deltas,
-      List<HrSample> hrSamples) async {
-    try {
-      final raw = await _extra.invokeMethod<List<dynamic>>(
-        'getSessionDetails',
-        {
-          'startMs': start.millisecondsSinceEpoch,
-          'endMs': end.millisecondsSinceEpoch,
-        },
-      );
-      for (final s in raw ?? []) {
-        final session = Map<String, dynamic>.from(s as Map);
-        if (session['uuid'] != uuid) continue;
-
-        final segments = (session['segments'] as List? ?? [])
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .map((m) {
-          final segStart = DateTime.fromMillisecondsSinceEpoch(
-              (m['startMs'] as num).toInt());
-          final segEnd = DateTime.fromMillisecondsSinceEpoch(
-              (m['endMs'] as num).toInt());
-          return RunSegment(
-            startTime: segStart,
-            endTime: segEnd,
-            type: m['type'] as String? ?? 'unknown',
-            distanceM: distanceBetween(deltas, segStart, segEnd),
-            avgHr: _avgHrBetween(hrSamples, segStart, segEnd),
-          );
-        }).toList();
-
-        int lapIdx = 1;
-        final laps = (session['laps'] as List? ?? [])
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .map((m) {
-          final lapStart = DateTime.fromMillisecondsSinceEpoch(
-              (m['startMs'] as num).toInt());
-          final lapEnd = DateTime.fromMillisecondsSinceEpoch(
-              (m['endMs'] as num).toInt());
-          final lengthM = (m['lengthM'] as num?)?.toDouble() ?? 0.0;
-          final dist = lengthM > 0
-              ? lengthM
-              : distanceBetween(deltas, lapStart, lapEnd);
-          return RunLap(
-            lapNumber: lapIdx++,
-            startTime: lapStart,
-            endTime: lapEnd,
-            distanceM: dist,
-            avgHr: _avgHrBetween(hrSamples, lapStart, lapEnd),
-          );
-        }).toList();
-
-        final totalSteps = (session['totalSteps'] as num?)?.toInt();
-
-        return (segments, laps, totalSteps);
-      }
-      return (const <RunSegment>[], const <RunLap>[], null);
-    } catch (_) {
-      return (const <RunSegment>[], const <RunLap>[], null);
-    }
-  }
-
-  Future<double> _fetchElevation(
-      DateTime start, DateTime end, String sourceId) async {
-    try {
-      return await _extra.invokeMethod<double>(
-            'getElevationGained',
-            {
-              'startMs': start.millisecondsSinceEpoch,
-              'endMs': end.millisecondsSinceEpoch,
-              'sourceId': sourceId,
-            },
-          ) ??
-          0;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  /// [from]~[to] 구간의 거리(미터) — 델타가 경계에 걸치면 시간 비례 배분
-  static double distanceBetween(
-      List<DistDelta> deltas, DateTime from, DateTime to) {
-    double sum = 0;
-    for (final d in deltas) {
-      final overlapStart = d.from.isAfter(from) ? d.from : from;
-      final overlapEnd = d.to.isBefore(to) ? d.to : to;
-      final overlapMs =
-          overlapEnd.difference(overlapStart).inMilliseconds;
-      if (overlapMs <= 0) continue;
-      final spanMs = d.to.difference(d.from).inMilliseconds;
-      sum += spanMs > 0 ? d.meters * overlapMs / spanMs : d.meters;
-    }
-    return sum;
-  }
+    DateTime start,
+    DateTime end,
+  ) =>
+      _nativeChannel.fetchVo2Series(start, end);
 
   /// 30일 이전 과거 데이터 읽기 권한 (READ_HEALTH_DATA_HISTORY).
   /// 기기가 미지원하면 false — 이 경우 30일 범위만 조회 가능.
@@ -177,70 +64,13 @@ class HealthService {
   /// 진단용: health 패키지를 거치지 않고 Health Connect SDK를 직접 호출해
   /// 같은 구간의 세션 목록을 가져온다. health 패키지 자체의 누락 문제인지
   /// Health Connect 권한/가시성 문제인지 구분하기 위한 대조군.
-  Future<List<Map<String, String>>> debugNativeSessions(DateTime since) async {
-    try {
-      final raw = await _extra.invokeMethod<List<dynamic>>(
-        'getRawSessions',
-        {
-          'startMs': since.millisecondsSinceEpoch,
-          'endMs': DateTime.now().millisecondsSinceEpoch,
-        },
-      );
-      return (raw ?? [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .map((m) => {
-                'exerciseType': '${m['exerciseType']}',
-                'title': '${m['title']}',
-                'start': DateTime.fromMillisecondsSinceEpoch(
-                        (m['startMs'] as num).toInt())
-                    .toIso8601String(),
-                'end': DateTime.fromMillisecondsSinceEpoch(
-                        (m['endMs'] as num).toInt())
-                    .toIso8601String(),
-                'dataOrigin': '${m['dataOrigin']}',
-              })
-          .toList();
-    } catch (e) {
-      return [
-        {'error': '$e'}
-      ];
-    }
-  }
+  Future<List<Map<String, String>>> debugNativeSessions(DateTime since) =>
+      _nativeChannel.debugRawSessions(since);
 
   /// 진단용: Health Connect Training Plans API의 계획된 운동
-  /// (PlannedExerciseSessionRecord)을 직접 읽는다. 삼성헬스가 인터벌
-  /// 프로그램을 이 타입으로 기록하기 시작했다면 ExerciseSessionRecord
-  /// 조회에서는 완전히 누락된다.
-  Future<List<Map<String, String>>> debugPlannedSessions(
-      DateTime since) async {
-    try {
-      final raw = await _extra.invokeMethod<List<dynamic>>(
-        'getPlannedSessions',
-        {
-          'startMs': since.millisecondsSinceEpoch,
-          'endMs': DateTime.now().millisecondsSinceEpoch,
-        },
-      );
-      return (raw ?? [])
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .map((m) => {
-                'title': '${m['title']}',
-                'start': DateTime.fromMillisecondsSinceEpoch(
-                        (m['startMs'] as num).toInt())
-                    .toIso8601String(),
-                'end': DateTime.fromMillisecondsSinceEpoch(
-                        (m['endMs'] as num).toInt())
-                    .toIso8601String(),
-                'completionUuid': '${m['completionUuid']}',
-                'dataOrigin': '${m['dataOrigin']}',
-              })
-          .toList();
-    } catch (e) {
-      return [
-        {'error': '$e'}
-      ];
-    }
-  }
+  /// (PlannedExerciseSessionRecord)을 직접 읽는다.
+  Future<List<Map<String, String>>> debugPlannedSessions(DateTime since) =>
+      _nativeChannel.debugPlannedSessions(since);
 
   /// 진단용: 필터링 없이 원본 WORKOUT 레코드의 타입/시각/출처를 그대로 반환.
   /// 동기화 누락 원인 파악(예: 예상치 못한 workoutActivityType) 확인용.
@@ -265,8 +95,12 @@ class HealthService {
   }
 
   /// [since] 이후의 러닝 세션을 가져온다.
-  /// Health Connect는 최초 권한 시점 기준 과거 30일 이전 데이터 조회가 제한되므로
-  /// 최초 동기화 범위도 30일로 잡는다 (PRD 3.1 주의사항).
+  ///
+  /// 성능 최적화:
+  /// 세션별로 개별 Health Connect 쿼리를 수십~수백 번 반복(Sequential)하지 않고,
+  /// 1) WORKOUT 목록을 먼저 조회한 후
+  /// 2) 세션들의 전체 기간을 아우르는 단일 Bulk 쿼리로 심박/거리/칼로리/걸음 데이터를 병렬 획득하고
+  /// 3) In-memory 상에서 시간 구간 및 출처 매칭을 수행하여 고속으로 세션을 조립한다.
   Future<List<RunSession>> fetchRuns({DateTime? since}) async {
     final now = DateTime.now();
     final start = since ?? now.subtract(const Duration(days: 30));
@@ -277,285 +111,124 @@ class HealthService {
       endTime: now,
     );
 
-    final runs = <RunSession>[];
+    final runWorkouts = <(HealthDataPoint, WorkoutHealthValue)>[];
     for (final point in workouts) {
       final value = point.value;
       if (value is! WorkoutHealthValue) continue;
-      // 삼성헬스가 달리기/걷기 인터벌 세션을 세션 레벨에서 RUNNING이 아닌
-      // HIGH_INTENSITY_INTERVAL_TRAINING으로 태깅하는 경우가 있어 함께 허용
-      // (23일 인터벌 러닝 프로그램 기록이 이 타입으로 들어옴).
       final typeName = value.workoutActivityType.name;
       final isRunLike = typeName.contains('RUNNING') ||
           typeName == 'HIGH_INTENSITY_INTERVAL_TRAINING';
       if (!isRunLike) continue;
 
-      runs.add(await _buildSession(point, value));
+      runWorkouts.add((point, value));
+    }
+
+    if (runWorkouts.isEmpty) return const [];
+
+    // 전체 러닝 세션의 최소 시작 시각과 최대 종료 시각
+    var bulkStart = runWorkouts.first.$1.dateFrom;
+    var bulkEnd = runWorkouts.first.$1.dateTo;
+    for (final (point, _) in runWorkouts) {
+      if (point.dateFrom.isBefore(bulkStart)) bulkStart = point.dateFrom;
+      if (point.dateTo.isAfter(bulkEnd)) bulkEnd = point.dateTo;
+    }
+
+    // 기간 단위 Bulk 쿼리 병렬 실행 (IPC 호출 최소화)
+    final bulkResults = await Future.wait([
+      _getBulkHealthData(HealthDataType.HEART_RATE, bulkStart, bulkEnd),
+      _getBulkHealthData(HealthDataType.DISTANCE_DELTA, bulkStart, bulkEnd),
+      _getBulkHealthData(HealthDataType.TOTAL_CALORIES_BURNED, bulkStart, bulkEnd),
+      _getBulkHealthData(HealthDataType.STEPS, bulkStart, bulkEnd),
+      _nativeChannel.fetchSessionDetailsMap(bulkStart, bulkEnd),
+    ]);
+
+    final hrPoints = bulkResults[0] as List<HealthDataPoint>;
+    final distPoints = bulkResults[1] as List<HealthDataPoint>;
+    final calPoints = bulkResults[2] as List<HealthDataPoint>;
+    final stepsPoints = bulkResults[3] as List<HealthDataPoint>;
+    final nativeDetailsMap =
+        bulkResults[4] as Map<String, NativeSessionDetail>;
+
+    // 각 세션별 고도 데이터 병렬 조회
+    final elevationFutures = runWorkouts.map((w) {
+      return _nativeChannel.fetchElevation(
+        w.$1.dateFrom,
+        w.$1.dateTo,
+        w.$1.sourceId,
+      );
+    }).toList();
+    final elevations = await Future.wait(elevationFutures);
+
+    // In-memory 매칭으로 RunSession 조립
+    final runs = <RunSession>[];
+    for (var i = 0; i < runWorkouts.length; i++) {
+      final (point, value) = runWorkouts[i];
+      final nativeDetail = nativeDetailsMap[point.uuid];
+      final elevation = elevations[i];
+
+      final session = HealthDataMatcher.buildRunSession(
+        workoutPoint: point,
+        workoutValue: value,
+        allHrPoints: hrPoints,
+        allDistPoints: distPoints,
+        allCalPoints: calPoints,
+        allStepsPoints: stepsPoints,
+        nativeDetail: nativeDetail,
+        elevation: elevation,
+      );
+      runs.add(session);
     }
     return runs;
   }
 
-  Future<RunSession> _buildSession(
-      HealthDataPoint point, WorkoutHealthValue value) async {
-    final start = point.dateFrom;
-    final end = point.dateTo;
-
-    // 세션 구간의 심박 시계열
-    final hrPoints = await _health.getHealthDataFromTypes(
-      types: [HealthDataType.HEART_RATE],
-      startTime: start,
-      endTime: end,
-    );
-    final hrSamples = hrPoints
-        .where((p) =>
-            sameSource(p.sourceId, point.sourceId,
-                dataSourceName: p.sourceName,
-                workoutSourceName: point.sourceName) &&
-            p.value is NumericHealthValue)
-        .map((p) => HrSample(
-              time: p.dateFrom,
-              bpm: (p.value as NumericHealthValue).numericValue.toDouble(),
-            ))
-        .toList()
-      ..sort((a, b) => a.time.compareTo(b.time));
-
-    // 세션 구간의 거리 델타 (스플릿 산출용)
-    final distPoints = await _health.getHealthDataFromTypes(
-      types: [HealthDataType.DISTANCE_DELTA],
-      startTime: start,
-      endTime: end,
-    );
-    final deltas = distPoints
-        .where((p) =>
-            sameSource(p.sourceId, point.sourceId,
-                dataSourceName: p.sourceName,
-                workoutSourceName: point.sourceName) &&
-            p.value is NumericHealthValue)
-        .map((p) => DistDelta(
-              from: p.dateFrom,
-              to: p.dateTo,
-              meters:
-                  (p.value as NumericHealthValue).numericValue.toDouble(),
-            ))
-        .toList()
-      ..sort((a, b) => a.from.compareTo(b.from));
-
-    final deltaSum = deltas.fold<double>(0, (sum, d) => sum + d.meters);
-    final distanceM =
-        (value.totalDistance?.toDouble() ?? 0) > 0
-            ? value.totalDistance!.toDouble()
-            : deltaSum;
-
-    double? calories = value.totalEnergyBurned?.toDouble();
-    if (calories == null || calories == 0) {
-      final calPoints = await _health.getHealthDataFromTypes(
-        types: [HealthDataType.TOTAL_CALORIES_BURNED],
-        startTime: start,
-        endTime: end,
-      );
-      final calSum = calPoints
-          .where((p) =>
-              sameSource(p.sourceId, point.sourceId,
-                  dataSourceName: p.sourceName,
-                  workoutSourceName: point.sourceName) &&
-              p.value is NumericHealthValue)
-          .fold<double>(
-              0,
-              (sum, p) =>
-                  sum + (p.value as NumericHealthValue).numericValue);
-      calories = calSum > 0 ? calSum : null;
-    }
-
-    // 인터벌 세그먼트(운동/회복)·실제 랩·네이티브 걸음수·상승고도 — 네이티브 채널
-    final (segments, laps, nativeSteps) =
-        await _fetchSessionDetails(point.uuid, start, end, deltas, hrSamples);
-    final elevation = await _fetchElevation(start, end, point.sourceId);
-
-    // 걸음 수 (Health Connect Workout 집계값 > 네이티브 직독 > health 패키지 합산)
-    int? steps = value.totalSteps;
-    if (steps == null || steps <= 0) {
-      if (nativeSteps != null && nativeSteps > 0) {
-        steps = nativeSteps;
-      }
-    }
-    if (steps == null || steps <= 0) {
-      final sumSteps = (await _sumNumeric(HealthDataType.STEPS, start, end,
-              point.sourceId, point.sourceName))
-          .round();
-      if (sumSteps > 0) steps = sumSteps;
-    }
-
-    final avgHr = hrSamples.isEmpty
-        ? null
-        : hrSamples.fold<double>(0, (s, h) => s + h.bpm) / hrSamples.length;
-    final maxHr = hrSamples.isEmpty
-        ? null
-        : hrSamples.map((h) => h.bpm).reduce((a, b) => a > b ? a : b);
-
-    return RunSession(
-      id: point.uuid,
-      startTime: start,
-      endTime: end,
-      distanceM: distanceM,
-      durationSec: end.difference(start).inSeconds,
-      avgHr: avgHr,
-      maxHr: maxHr,
-      calories: calories,
-      steps: (steps != null && steps > 0) ? steps : null,
-      elevationM: elevation > 0 ? elevation : null,
-      segments: segments,
-      laps: laps,
-      splits: computeSplits(start, deltas, hrSamples),
-      hrSeries: downsampleHr(hrSamples, const Duration(minutes: 1)),
-      sourceName: point.sourceName,
-    );
-  }
-
-  Future<double> _sumNumeric(HealthDataType type, DateTime start, DateTime end,
-      String sourceId, String sourceName) async {
+  Future<List<HealthDataPoint>> _getBulkHealthData(
+    HealthDataType type,
+    DateTime start,
+    DateTime end,
+  ) async {
     try {
-      final points = await _health.getHealthDataFromTypes(
+      return await _health.getHealthDataFromTypes(
         types: [type],
         startTime: start,
         endTime: end,
       );
-      return points
-          .where((p) =>
-              sameSource(p.sourceId, sourceId,
-                  dataSourceName: p.sourceName,
-                  workoutSourceName: sourceName) &&
-              p.value is NumericHealthValue)
-          .fold<double>(
-              0, (sum, p) => sum + (p.value as NumericHealthValue).numericValue);
     } catch (_) {
-      return 0; // 타입 미지원 기기에서도 동기화는 계속
+      return const [];
     }
   }
 
-  /// 거리 델타 시계열로 km별 스플릿 산출.
-  /// 1km 경계를 넘는 델타 구간은 선형 보간으로 통과 시각을 추정한다.
-  /// 삼성헬스가 델타를 안 쓰는 경우 빈 리스트가 되어 스플릿 미표시 (리스크 2).
+  // --- 기존 코드 및 테스트와의 100% 하위 호환성을 위한 위임 메서드 ---
+
+  static double distanceBetween(
+    List<DistDelta> deltas,
+    DateTime from,
+    DateTime to,
+  ) =>
+      HealthDataMatcher.distanceBetween(deltas, from, to);
+
   static List<Split> computeSplits(
     DateTime sessionStart,
     List<DistDelta> deltas,
     List<HrSample> hrSamples,
-  ) {
-    if (deltas.isEmpty) return const [];
+  ) =>
+      HealthDataMatcher.computeSplits(sessionStart, deltas, hrSamples);
 
-    final splits = <Split>[];
-    double cumM = 0;
-    int nextKm = 1;
-    DateTime lastCross = sessionStart;
+  static bool sameSource(
+    String dataSourceId,
+    String workoutSourceId, {
+    String dataSourceName = '',
+    String workoutSourceName = '',
+  }) =>
+      HealthDataMatcher.sameSource(
+        dataSourceId,
+        workoutSourceId,
+        dataSourceName: dataSourceName,
+        workoutSourceName: workoutSourceName,
+      );
 
-    for (final d in deltas) {
-      final spanSec = d.to.difference(d.from).inMilliseconds / 1000.0;
-      double segStartM = cumM;
-      cumM += d.meters;
-
-      while (cumM >= nextKm * 1000) {
-        final needed = nextKm * 1000 - segStartM;
-        final frac = d.meters > 0 ? (needed / d.meters).clamp(0.0, 1.0) : 0.0;
-        final crossTime = d.from.add(
-            Duration(milliseconds: (spanSec * 1000 * frac).round()));
-        final paceSec = crossTime.difference(lastCross).inSeconds;
-        splits.add(Split(
-          km: nextKm.toDouble(),
-          paceSecPerKm: paceSec,
-          avgHr: _avgHrBetween(hrSamples, lastCross, crossTime),
-        ));
-        lastCross = crossTime;
-        nextKm++;
-      }
-    }
-
-    // 마지막 부분 km (300m 이상일 때만 표시, 환산 페이스)
-    final remainM = cumM - (nextKm - 1) * 1000;
-    if (remainM >= 300) {
-      final remainSec = deltas.last.to.difference(lastCross).inSeconds;
-      splits.add(Split(
-        km: double.parse((cumM / 1000).toStringAsFixed(2)),
-        paceSecPerKm: (remainSec / (remainM / 1000)).round(),
-        avgHr: _avgHrBetween(hrSamples, lastCross, deltas.last.to),
-      ));
-    }
-    return splits;
-  }
-
-  static bool sameSource(String dataSourceId, String workoutSourceId,
-      {String dataSourceName = '', String workoutSourceName = ''}) {
-    if (dataSourceId.isNotEmpty && workoutSourceId.isNotEmpty) {
-      if (dataSourceId == workoutSourceId) return true;
-    }
-    if (dataSourceName.isNotEmpty && workoutSourceName.isNotEmpty) {
-      if (dataSourceName == workoutSourceName) return true;
-    }
-    // Cross-match: e.g. Health Connect interval records where source_name contains package name and source_id is empty
-    if (dataSourceName.isNotEmpty && workoutSourceId.isNotEmpty) {
-      if (dataSourceName == workoutSourceId) return true;
-    }
-    if (dataSourceId.isNotEmpty && workoutSourceName.isNotEmpty) {
-      if (dataSourceId == workoutSourceName) return true;
-    }
-
-    final isTargetSamsung = workoutSourceId.contains('shealth') ||
-        workoutSourceId.contains('samsung') ||
-        workoutSourceName.contains('shealth') ||
-        workoutSourceName.toLowerCase().contains('samsung');
-    if (isTargetSamsung) {
-      final isPointSamsung = dataSourceId.contains('shealth') ||
-          dataSourceId.contains('samsung') ||
-          dataSourceName.contains('shealth') ||
-          dataSourceName.toLowerCase().contains('samsung');
-      if (isPointSamsung) return true;
-    }
-
-    if (dataSourceId.isEmpty && dataSourceName.isEmpty) {
-      return true;
-    }
-
-    return dataSourceId == workoutSourceId;
-  }
-
-  static double? _avgHrBetween(
-      List<HrSample> samples, DateTime from, DateTime to) {
-    final inRange = samples
-        .where((h) => !h.time.isBefore(from) && !h.time.isAfter(to))
-        .toList();
-    if (inRange.isEmpty) return null;
-    return inRange.fold<double>(0, (s, h) => s + h.bpm) / inRange.length;
-  }
-
-  /// Firestore 1MB 문서 제한 대비 다운샘플링 (PRD 5). 로컬 저장도 동일 적용.
   static List<HrSample> downsampleHr(
-      List<HrSample> samples, Duration bucket) {
-    if (samples.isEmpty) return const [];
-    final out = <HrSample>[];
-    DateTime bucketStart = samples.first.time;
-    final acc = <double>[];
-    for (final s in samples) {
-      if (s.time.difference(bucketStart) >= bucket) {
-        out.add(HrSample(
-          time: bucketStart,
-          bpm: acc.reduce((a, b) => a + b) / acc.length,
-        ));
-        bucketStart = s.time;
-        acc.clear();
-      }
-      acc.add(s.bpm);
-    }
-    if (acc.isNotEmpty) {
-      out.add(HrSample(
-        time: bucketStart,
-        bpm: acc.reduce((a, b) => a + b) / acc.length,
-      ));
-    }
-    return out;
-  }
-}
-
-/// Health Connect DISTANCE_DELTA 1건 (테스트에서 직접 생성 가능하도록 공개)
-class DistDelta {
-  final DateTime from;
-  final DateTime to;
-  final double meters;
-  const DistDelta({required this.from, required this.to, required this.meters});
+    List<HrSample> samples,
+    Duration bucket,
+  ) =>
+      HealthDataMatcher.downsampleHr(samples, bucket);
 }

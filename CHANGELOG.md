@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-09-05 (4단계 서비스 및 저장소 최적화 — Health Connect 벌크 쿼리 & Gemini 파이프라인 정비)
+
+### Health Connect 서비스 쿼리 성능 최적화 및 헬퍼 분리 (`lib/services/health/`)
+- **세션별 반복 Sequential 쿼리 제거 및 기간 단위 Bulk 쿼리(readRecords) 전환**:
+  - `fetchRuns()` 시 기존 러닝 세션 N개마다 각각 심박/거리/칼로리/걸음 수를 동기적으로 질의하던 $N \times 4\sim 6$회 Sequential IPC 호출을 단일 병렬 Bulk 쿼리(`Future.wait`)로 전면 개편
+  - 세션들의 전체 기간(`[bulkStart, bulkEnd]`)을 산출하여 데이터 타입별 1회 벌크 조회 후, 메모리 상에서 세션별 시간 범위 및 패키지 출처(`sameSource`)를 고속 매칭
+- **Health Connect 서브 서비스 및 헬퍼 클래스 모듈화**:
+  - `lib/services/health/native_health_channel.dart`: 네이티브 MethodChannel(`runlog/hc_extra`) 통신, 고도/VO2max/세션상세 조회 및 DTO(`NativeSessionDetail`, `NativeRawSegment`, `NativeRawLap`) 격리
+  - `lib/services/health/health_data_matcher.dart`: 인메모리 심박/거리델타/칼로리/걸음수 매칭, 스플릿 산출(`computeSplits`), 다운샘플링(`downsampleHr`), 세션 빌더(`buildRunSession`) 캡슐화
+  - `lib/services/health_service.dart`: 인터페이스 및 위임 계층 유지로 기존 코드 및 테스트 100% 하위 호환 보장
+
+### Gemini AI 서비스 파이프라인 정비 및 DTO 모듈화 (`lib/services/gemini/`)
+- **Dynamic JSON 파싱 격리 및 Typed DTO 도입 (`lib/services/gemini/gemini_dto.dart`)**:
+  - `GeminiGenerateRequestDto`, `GeminiGenerateResponseDto`, `GeminiCandidateDto`, `GeminiContentDto`, `GeminiPartDto`, `GeminiGenerationConfigDto`
+  - `thought: true` 내부 사고 과정 필터링 및 빈 응답 검증을 타입 안전한 DTO 메서드(`extractCleanText()`)로 격리
+- **Prompt Builder 분리 (`lib/services/gemini/gemini_prompt_builder.dart`)**:
+  - `buildRunSummaryPrompt()`: 단일 러닝 요약/스플릿/랩/심박존/러닝역학/최근비교 구조화 프롬프트 빌더
+  - `buildGoalRecommendationPrompt()`: 누적/월간 통계 및 최근 4주 볼륨 기반 3섹션 목표 추천 프롬프트 빌더
+  - `averagePaceSecPerKm()`: 유효 페이스 기반 평균치 산출 분리
+- **HTTP Engine 분리 (`lib/services/gemini/gemini_http_client.dart`)**:
+  - `GeminiHttpEngine`: 60초 타임아웃, 재시도 가능 상태코드(`429, 500, 502, 503, 504`)에 대한 지수 백오프(1초, 2초), `GeminiNotConfiguredException` 및 네트워크 예외 처리 전담
+- **`lib/services/gemini_service.dart` 경량화**:
+  - 고수준 코디네이터 역할로 슬림화 및 생성자/메서드 100% 하위 호환 유지
+
+### 테스트 및 품질 안정화
+- **신규 단위 테스트 추가**:
+  - `test/gemini_pipeline_test.dart`: DTO 직렬화/역직렬화, 프롬프트 빌더, HTTP 엔진 직접 테스트 9종
+  - `test/health_data_matcher_test.dart`: 인메모리 심박/거리/칼로리/걸음수/랩/세션 조립 단위 테스트 6종
+- **전체 테스트 142종 100% 통과 (`flutter test` 142/142 PASS, `flutter analyze` 0 issues)**
+
 ## 2026-09-05 (3단계 대형 UI 화면 분할 및 모듈화 리팩토링)
 
 ### 대형 UI 파일 모듈화 및 단일 책임 원칙(SRP) 적용
