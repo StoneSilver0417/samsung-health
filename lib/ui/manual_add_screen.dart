@@ -272,14 +272,14 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: AppSpacing.screenPadding,
           children: [
             const Text(
               'Health Connect 동기화 장애 등으로 누락된 기록을 삼성헬스 원본 값을 보고\n'
               '직접 입력할 때 사용하세요. 스플릿·심박 그래프 없이 요약 정보만 저장됩니다.',
-              style: kMetricLabelStyle,
+              style: AppTypography.metricLabel,
             ),
-            const SizedBox(height: 24),
+            AppSpacing.gapH24,
             Row(
               children: [
                 Expanded(
@@ -288,7 +288,7 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                     child: Text(DateFormat('yyyy.M.d (E)', 'ko').format(_date)),
                   ),
                 ),
-                const SizedBox(width: 12),
+                AppSpacing.gapW12,
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _pickTime,
@@ -297,7 +297,7 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 20),
+            AppSpacing.gapH20,
             TextFormField(
               controller: _kmCtrl,
               keyboardType: const TextInputType.numberWithOptions(
@@ -306,6 +306,7 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
               decoration: const InputDecoration(
                 labelText: '거리 (km)',
                 hintText: '예: 5.2',
+                border: OutlineInputBorder(borderRadius: AppRadius.br12),
               ),
               onChanged: (_) => setState(() {}),
               validator: (v) {
@@ -316,12 +317,12 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 16),
-            const Text('입력 방식', style: kMetricLabelStyle),
-            const SizedBox(height: 8),
+            AppSpacing.gapH16,
+            const Text('입력 방식', style: AppTypography.metricLabel),
+            AppSpacing.gapH8,
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: AppSpacing.s8,
+              runSpacing: AppSpacing.s8,
               children: [
                 ChoiceChip(
                   label: const Text('소요시간으로 입력'),
@@ -347,15 +348,15 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            AppSpacing.gapH16,
             KeyedSubtree(
               key: ValueKey(_inputMode),
               child: _inputMode == _ManualInputMode.duration
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('소요 시간', style: kMetricLabelStyle),
-                        const SizedBox(height: 8),
+                        const Text('소요 시간', style: AppTypography.metricLabel),
+                        AppSpacing.gapH8,
                         Row(
                           children: [
                             Expanded(
@@ -364,12 +365,14 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                                 keyboardType: TextInputType.number,
                                 decoration: const InputDecoration(
                                   labelText: '시간',
+                                  border: OutlineInputBorder(
+                                      borderRadius: AppRadius.br12),
                                 ),
                                 onChanged: (_) => setState(() {}),
                                 validator: (v) => _validateTimePart(v),
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            AppSpacing.gapW8,
                             Expanded(
                               child: TextFormField(
                                 controller: _minCtrl,
@@ -377,6 +380,8 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                                 decoration: const InputDecoration(
                                   labelText: '분',
                                   errorMaxLines: 2,
+                                  border: OutlineInputBorder(
+                                      borderRadius: AppRadius.br12),
                                 ),
                                 onChanged: (_) => setState(() {}),
                                 validator: (v) {
@@ -405,13 +410,15 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                                 },
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            AppSpacing.gapW8,
                             Expanded(
                               child: TextFormField(
                                 controller: _secCtrl,
                                 keyboardType: TextInputType.number,
                                 decoration: const InputDecoration(
                                   labelText: '초',
+                                  border: OutlineInputBorder(
+                                      borderRadius: AppRadius.br12),
                                 ),
                                 onChanged: (_) => setState(() {}),
                                 validator: (v) =>
@@ -420,7 +427,7 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        AppSpacing.gapH12,
                         Text(
                           previewPace == null
                               ? '평균 페이스: 거리와 시간을 입력하세요'
@@ -438,8 +445,9 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('평균 페이스 (분/km)', style: kMetricLabelStyle),
-                        const SizedBox(height: 8),
+                        const Text('평균 페이스 (분/km)',
+                            style: AppTypography.metricLabel),
+                        AppSpacing.gapH8,
                         Row(
                           children: [
                             Expanded(
@@ -449,6 +457,8 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                                 decoration: const InputDecoration(
                                   labelText: '분',
                                   errorMaxLines: 2,
+                                  border: OutlineInputBorder(
+                                      borderRadius: AppRadius.br12),
                                 ),
                                 onChanged: (_) => setState(() {}),
                                 validator: (v) {
@@ -470,13 +480,15 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                                 },
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            AppSpacing.gapW8,
                             Expanded(
                               child: TextFormField(
                                 controller: _paceSecCtrl,
                                 keyboardType: TextInputType.number,
                                 decoration: const InputDecoration(
                                   labelText: '초',
+                                  border: OutlineInputBorder(
+                                      borderRadius: AppRadius.br12),
                                 ),
                                 onChanged: (_) => setState(() {}),
                                 validator: (v) =>
@@ -485,7 +497,7 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        AppSpacing.gapH12,
                         Text(
                           previewDuration == null
                               ? '소요 시간: 거리와 페이스를 입력하세요'
@@ -501,39 +513,45 @@ class _ManualAddScreenState extends ConsumerState<ManualAddScreen> {
                       ],
                     ),
             ),
-            const SizedBox(height: 16),
+            AppSpacing.gapH16,
             TextFormField(
               controller: _hrCtrl,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: '평균 심박수 (선택)',
                 hintText: '예: 152',
+                border: OutlineInputBorder(borderRadius: AppRadius.br12),
               ),
             ),
-            const SizedBox(height: 16),
+            AppSpacing.gapH16,
             TextFormField(
               controller: _maxHrCtrl,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: '최고 심박수 (선택)',
                 hintText: '예: 178',
+                border: OutlineInputBorder(borderRadius: AppRadius.br12),
               ),
             ),
-            const SizedBox(height: 16),
+            AppSpacing.gapH16,
             TextFormField(
               controller: _calCtrl,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: '칼로리 (선택)',
                 hintText: '예: 320',
+                border: OutlineInputBorder(borderRadius: AppRadius.br12),
               ),
             ),
-            const SizedBox(height: 28),
+            AppSpacing.gapH28,
             FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.neon,
                 foregroundColor: Colors.black,
                 minimumSize: const Size.fromHeight(52),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: AppRadius.br12,
+                ),
               ),
               onPressed: _saving ? null : _save,
               child: Text(

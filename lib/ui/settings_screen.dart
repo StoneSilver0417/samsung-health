@@ -48,43 +48,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: AppSpacing.screenPadding,
         children: [
-          const Text('AI 러닝 요약 (Gemini API)',
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
+          const Text(
+            'AI 러닝 요약 (Gemini API)',
+            style: AppTypography.titleMedium,
+          ),
+          AppSpacing.gapH8,
           const Text(
             'Google AI Studio(aistudio.google.com)에서 무료로 발급받은 API 키를 입력하면\n'
             '러닝 상세 화면에서 AI가 기록을 요약·코멘트해줍니다. 키는 기기에 암호화\n'
             '저장되지만, AI 요약을 요청할 때 Google Gemini API로 전송됩니다.',
-            style: kMetricLabelStyle,
+            style: AppTypography.metricLabel,
           ),
-          const SizedBox(height: 20),
+          AppSpacing.gapH20,
           TextField(
             controller: _keyCtrl,
             obscureText: _obscure,
             decoration: InputDecoration(
               labelText: 'Gemini API 키',
               hintText: 'AIza...',
+              border: const OutlineInputBorder(
+                borderRadius: AppRadius.br12,
+              ),
               suffixIcon: IconButton(
-                icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                icon: Icon(
+                  _obscure ? Icons.visibility : Icons.visibility_off,
+                  size: AppIconSizes.lg,
+                ),
                 onPressed: () => setState(() => _obscure = !_obscure),
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          AppSpacing.gapH20,
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.neon,
               foregroundColor: Colors.black,
               minimumSize: const Size.fromHeight(52),
+              shape: const RoundedRectangleBorder(
+                borderRadius: AppRadius.br12,
+              ),
             ),
             onPressed: _save,
-            child: const Text('저장',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            child: const Text('저장'),
           ),
         ],
       ),

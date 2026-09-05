@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-09-05 (2단계 디자인 토큰 체계화 & ThemeExtension 도입)
+
+### 디자인 시스템 & 토큰 체계화
+- **`DESIGN.md` 가이드라인 수립**:
+  - 야간 러너를 위한 다크 네온 디자인 원칙 및 토큰 사양 명문화
+  - Color, Spacing Scale(4/8/12/16/20/24/32), Radius(4/8/12/16/20/24/Full), Typography Scale, Icon Sizes 사양 정의
+- **`AppDesignTokens` ThemeExtension 및 `buildAppTheme()` 구축 (`lib/core/theme/`)**:
+  - `AppDesignTokens`: `ThemeExtension<AppDesignTokens>` 구현으로 `context.tokens` 및 테마 인스펙션 지원
+  - `AppColors`, `AppSpacing`, `AppRadius`, `AppTypography`, `AppIconSizes`: 정적 상수 네임스페이스 및 `EdgeInsets`, `BorderRadius`, `SizedBox` gap 제공
+  - Material 3 테마 완벽 연동: `ColorScheme`, `CardThemeData`, `AppBarTheme`, `NavigationBarThemeData`, `SnackBarThemeData`, `DialogThemeData`, `BottomSheetThemeData`, `FilledButtonThemeData`, `OutlinedButtonThemeData`, `ChipThemeData`
+- **전체 4탭 및 UI 컴포넌트 하드코딩 값 추출 및 리팩토링**:
+  - `HomeScreen`, `RunsScreen`, `RunDetailScreen`, `AnalysisScreen`, `AchievementsScreen`, `SettingsScreen`, `ManualAddScreen`, `ImportScreen`, `DebugScreen`
+  - `WeeklyRing`, `LevelCard`, `RunCard`, `CalendarHeatmap`
+- **표면 깊이(Surface Depth) 및 시각적 위계 다변화**:
+  - Top Hero 카드 (`WeeklyRing`, `RunDetailScreen` 상단 메트릭 요약): `cardElevated` (`#1C222C`) 적용
+  - 데이터 인셋 박스 (`_runningDynamicsCard`, 심박 드리프트/보폭 인셋): `cardSubtle` (`#11141A`) 적용
+- **접근성(a11y) 및 고대비 가독성 강화**:
+  - 텍스트 및 차트 축 라벨 색상 명도 대비비 강화 (`textPrimary`: 14:1+, `textSecondary`: 4.5:1+ WCAG AA 달성)
+  - `WeeklyRing`, `RunCard`, `LevelCard`, `CalendarHeatmap`, `LineChart`, `BarChart` 영역에 스크린 리더용 `Semantics(label: ...)` 추가
+- **단위 및 위젯 테스트 추가 (`test/design_tokens_test.dart`)**:
+  - `AppDesignTokens` 기본값, `copyWith`, `lerp`, `buildAppTheme` 테스트
+  - WCAG 명도 대비비(4.5:1 이상) 수학적 검증 테스트
+  - `WeeklyRing`, `RunCard`, `LevelCard`, `CalendarHeatmap` `Semantics` 렌더링 테스트
+  - 전체 테스트 112종 100% 통과 (`flutter test` 112/112 PASS, `flutter analyze` 0 issues)
+
 ## 2026-09-05 (1단계 안전망 구축 완료 — Riverpod Notifier, GeminiService 및 UI AsyncValue 회귀 테스트 체계 구축)
 
 ### 테스트 및 품질 안정화

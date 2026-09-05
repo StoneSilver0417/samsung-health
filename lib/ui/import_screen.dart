@@ -106,12 +106,17 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s16,
+              AppSpacing.s8,
+              AppSpacing.s16,
+              0,
+            ),
             child: Row(
               children: [
                 Expanded(
                   child: Wrap(
-                    spacing: 8,
+                    spacing: AppSpacing.s8,
                     children: List.generate(_ranges.length, (i) {
                       return ChoiceChip(
                         label: Text(_ranges[i].label),
@@ -129,6 +134,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.neon,
                     foregroundColor: Colors.black,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: AppRadius.br12,
+                    ),
                   ),
                   onPressed: _loading ? null : _search,
                   child: const Text('검색',
@@ -138,10 +146,15 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             ),
           ),
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.s16,
+              AppSpacing.s8,
+              AppSpacing.s16,
+              0,
+            ),
             child: Text(
               '30일 이전 기록은 헬스 커넥트의 "과거 데이터" 권한 허용이 필요해요',
-              style: kMetricLabelStyle,
+              style: AppTypography.metricLabel,
             ),
           ),
           Expanded(child: _body()),
@@ -151,12 +164,15 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
           ? null
           : SafeArea(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: AppSpacing.cardPadding,
                 child: FilledButton(
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.neon,
                     foregroundColor: Colors.black,
                     minimumSize: const Size.fromHeight(52),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: AppRadius.br12,
+                    ),
                   ),
                   onPressed:
                       _loading || _checked.isEmpty ? null : _import,
@@ -178,21 +194,21 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     if (_error != null) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: AppSpacing.all24,
           child: Text(_error!,
-              textAlign: TextAlign.center, style: kMetricLabelStyle),
+              textAlign: TextAlign.center, style: AppTypography.metricLabel),
         ),
       );
     }
     final candidates = _candidates;
     if (candidates == null) {
       return const Center(
-        child: Text('기간을 선택하고 검색을 눌러주세요', style: kMetricLabelStyle),
+        child: Text('기간을 선택하고 검색을 눌러주세요', style: AppTypography.metricLabel),
       );
     }
     if (candidates.isEmpty) {
       return const Center(
-        child: Text('해당 기간에 러닝 기록이 없습니다', style: kMetricLabelStyle),
+        child: Text('해당 기간에 러닝 기록이 없습니다', style: AppTypography.metricLabel),
       );
     }
 
@@ -208,9 +224,13 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
           controlAffinity: ListTileControlAffinity.leading,
           activeColor: AppColors.neon,
           checkColor: Colors.black,
-          title: Text('전체 선택 (${selectable.length}개)',
-              style: const TextStyle(
-                  color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+          title: Text(
+            '전체 선택 (${selectable.length}개)',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           value: selectable.isNotEmpty && _checked.containsAll(selectable),
           onChanged: (v) => setState(() {
             if (v == true) {
@@ -220,7 +240,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             }
           }),
         ),
-        const Divider(height: 1, color: Colors.white12),
+        const Divider(height: 1, color: AppColors.borderSubtle),
         Expanded(
           child: ListView.builder(
             itemCount: candidates.length,
@@ -259,7 +279,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                           '${fmtDuration(run.durationSec)} · '
                           '${fmtPace(run.avgPaceSecPerKm)}'
                           '${run.avgHr != null ? ' · 심박 ${run.avgHr!.round()}' : ''}',
-                  style: kMetricLabelStyle,
+                  style: AppTypography.metricLabel,
                 ),
               );
             },

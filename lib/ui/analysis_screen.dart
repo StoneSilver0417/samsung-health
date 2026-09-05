@@ -36,22 +36,22 @@ class AnalysisScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('분석')),
       body: runs.isEmpty
           ? ListView(
-              padding: const EdgeInsets.only(bottom: 32),
+              padding: const EdgeInsets.only(bottom: AppSpacing.s32),
               children: [
                 _sectionTitle('러닝 캘린더'),
                 _heatmapCard(runs, context),
                 const Padding(
-                  padding: EdgeInsets.all(20),
+                  padding: AppSpacing.screenPadding,
                   child: Text(
                     '빈 날짜를 눌러 러닝 기록을 추가할 수 있습니다',
                     textAlign: TextAlign.center,
-                    style: kMetricLabelStyle,
+                    style: AppTypography.metricLabel,
                   ),
                 ),
               ],
             )
           : ListView(
-              padding: const EdgeInsets.only(bottom: 32),
+              padding: const EdgeInsets.only(bottom: AppSpacing.s32),
               children: [
                 _GoalRecommendCard(
                   stats: stats,
@@ -87,27 +87,19 @@ class AnalysisScreen extends ConsumerWidget {
   }
 
   Widget _sectionTitle(String t) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
-        child: Text(t,
-            style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 17,
-                fontWeight: FontWeight.w800)),
+        padding: AppSpacing.sectionHeaderPadding,
+        child: Text(t, style: AppTypography.titleMedium),
       );
 
   Widget _caption(String t) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-        child: Text(t,
-            style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                height: 1.4)),
+        padding: AppSpacing.captionPadding,
+        child: Text(t, style: AppTypography.bodySmall),
       );
 
   Widget _heatmapCard(List<RunSession> runs, BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPadding,
         child: CalendarHeatmap(
           runs: runs,
           onDayTap: (dayRuns) {
@@ -123,22 +115,23 @@ class AnalysisScreen extends ConsumerWidget {
                 backgroundColor: AppColors.card,
                 useSafeArea: true,
                 shape: const RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(20))),
+                  borderRadius: AppRadius.bottomSheetTopMedium,
+                ),
                 builder: (ctx) => ListView(
                   padding: EdgeInsets.fromLTRB(
-                      16, 16, 16, 16 + MediaQuery.viewPaddingOf(ctx).bottom),
+                    AppSpacing.s16,
+                    AppSpacing.s16,
+                    AppSpacing.s16,
+                    AppSpacing.s16 + MediaQuery.viewPaddingOf(ctx).bottom,
+                  ),
                   shrinkWrap: true,
                   children: [
                     Text(
                       DateFormat('M월 d일 (E)', 'ko')
                           .format(dayRuns.first.startTime),
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16),
+                      style: AppTypography.titleLarge.copyWith(fontSize: 16),
                     ),
-                    const SizedBox(height: 8),
+                    AppSpacing.gapH8,
                     ...dayRuns.map((r) => ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(
@@ -148,17 +141,21 @@ class AnalysisScreen extends ConsumerWidget {
                           ),
                           subtitle: Text(
                             DateFormat('HH:mm').format(r.startTime),
-                            style: kMetricLabelStyle,
+                            style: AppTypography.metricLabel,
                           ),
-                          trailing: const Icon(Icons.chevron_right,
-                              color: AppColors.textSecondary),
+                          trailing: const Icon(
+                            Icons.chevron_right,
+                            color: AppColors.textSecondary,
+                            size: AppIconSizes.md,
+                          ),
                           onTap: () {
                             Navigator.pop(ctx);
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (_) =>
-                                      RunDetailScreen(runId: r.id)),
+                                builder: (_) =>
+                                    RunDetailScreen(runId: r.id),
+                              ),
                             );
                           },
                         )),
@@ -181,23 +178,26 @@ class AnalysisScreen extends ConsumerWidget {
 
   Widget _monthlySummaryCard(MonthlyStats stats) {
     Widget row(String label, String value) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
           child: Row(
             children: [
-              Text(label, style: kMetricLabelStyle),
+              Text(label, style: AppTypography.metricLabel),
               const Spacer(),
-              Text(value,
-                  style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800)),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ],
           ),
         );
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -206,19 +206,18 @@ class AnalysisScreen extends ConsumerWidget {
               children: [
                 Text(
                   stats.thisMonthKm.toStringAsFixed(1),
-                  style: kMetricStyle.copyWith(
+                  style: AppTypography.largeMetric.copyWith(
                     color: AppColors.neon,
-                    fontSize: 34,
                   ),
                 ),
-                const SizedBox(width: 6),
+                AppSpacing.gapW6,
                 const Padding(
                   padding: EdgeInsets.only(bottom: 4),
-                  child: Text('km', style: kMetricLabelStyle),
+                  child: Text('km', style: AppTypography.metricLabel),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            AppSpacing.gapH12,
             row('러닝 횟수', '${stats.thisMonthRuns}회'),
             row('총 시간', fmtDuration(stats.thisMonthSec)),
             row(
@@ -241,9 +240,11 @@ class AnalysisScreen extends ConsumerWidget {
     if (stats.lastMonthRuns == 0) {
       return const Card(
         child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('지난달 러닝 기록이 없어 비교할 수 없습니다',
-              style: kMetricLabelStyle),
+          padding: AppSpacing.cardPadding,
+          child: Text(
+            '지난달 러닝 기록이 없어 비교할 수 없습니다',
+            style: AppTypography.metricLabel,
+          ),
         ),
       );
     }
@@ -263,7 +264,7 @@ class AnalysisScreen extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 7),
         child: Row(
           children: [
-            Expanded(child: Text(label, style: kMetricLabelStyle)),
+            Expanded(child: Text(label, style: AppTypography.metricLabel)),
             Text(
               value,
               style: const TextStyle(
@@ -272,7 +273,7 @@ class AnalysisScreen extends ConsumerWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(width: 10),
+            AppSpacing.gapW10,
             Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.end,
@@ -282,7 +283,7 @@ class AnalysisScreen extends ConsumerWidget {
                     improved
                         ? Icons.arrow_upward
                         : Icons.arrow_downward,
-                    size: 13,
+                    size: AppIconSizes.xs,
                     color: deltaColor,
                   ),
                 Text(
@@ -308,7 +309,7 @@ class AnalysisScreen extends ConsumerWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPadding,
         child: Column(
           children: [
             row(
@@ -352,62 +353,66 @@ class AnalysisScreen extends ConsumerWidget {
   Widget _monthlyBarChart(MonthlyStats stats) {
     final months = stats.monthlyKm;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 18, 18, 8),
-        child: SizedBox(
-          height: 180,
-          child: BarChart(
-            BarChartData(
-              gridData: const FlGridData(show: false),
-              borderData: FlBorderData(show: false),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(),
-                rightTitles: const AxisTitles(),
-                leftTitles: const AxisTitles(),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    getTitlesWidget: (v, _) {
-                      final i = v.toInt();
-                      if (i < 0 || i >= months.length) {
-                        return const SizedBox.shrink();
-                      }
-                      return Text(
-                        DateFormat('M월').format(months[i].$1),
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 10,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              barTouchData: BarTouchData(
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipItem: (group, _, rod, _) => BarTooltipItem(
-                    '${rod.toY.toStringAsFixed(1)} km',
-                    const TextStyle(
-                      color: AppColors.neon,
-                      fontWeight: FontWeight.w700,
+    return Semantics(
+      label: '최근 6개월 월별 러닝 거리 막대 그래프',
+      child: Card(
+        child: Padding(
+          padding: AppSpacing.chartPadding,
+          child: SizedBox(
+            height: 180,
+            child: BarChart(
+              BarChartData(
+                gridData: const FlGridData(show: false),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
+                  leftTitles: const AxisTitles(),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (v, _) {
+                        final i = v.toInt();
+                        if (i < 0 || i >= months.length) {
+                          return const SizedBox.shrink();
+                        }
+                        return Text(
+                          DateFormat('M월').format(months[i].$1),
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
-              ),
-              barGroups: List.generate(months.length, (i) {
-                final isThisMonth = i == months.length - 1;
-                return BarChartGroupData(x: i, barRods: [
-                  BarChartRodData(
-                    toY: months[i].$2,
-                    width: 22,
-                    borderRadius: BorderRadius.circular(5),
-                    color: isThisMonth
-                        ? AppColors.neon
-                        : AppColors.neon.withValues(alpha: 0.4),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipItem: (group, _, rod, _) => BarTooltipItem(
+                      '${rod.toY.toStringAsFixed(1)} km',
+                      const TextStyle(
+                        color: AppColors.neon,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
-                ]);
-              }),
+                ),
+                barGroups: List.generate(months.length, (i) {
+                  final isThisMonth = i == months.length - 1;
+                  return BarChartGroupData(x: i, barRods: [
+                    BarChartRodData(
+                      toY: months[i].$2,
+                      width: 22,
+                      borderRadius: AppRadius.br4,
+                      color: isThisMonth
+                          ? AppColors.neon
+                          : AppColors.neon.withValues(alpha: 0.4),
+                    ),
+                  ]);
+                }),
+              ),
             ),
           ),
         ),
@@ -425,57 +430,67 @@ class AnalysisScreen extends ConsumerWidget {
       weeklyKm[w] = (weeklyKm[w] ?? 0) + r.distanceKm;
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 18, 18, 8),
-        child: SizedBox(
-          height: 180,
-          child: BarChart(
-            BarChartData(
-              gridData: const FlGridData(show: false),
-              borderData: FlBorderData(show: false),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(),
-                rightTitles: const AxisTitles(),
-                leftTitles: const AxisTitles(),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    getTitlesWidget: (v, _) {
-                      final i = v.toInt();
-                      if (i < 0 || i >= weeks.length) {
-                        return const SizedBox.shrink();
-                      }
-                      return Text(DateFormat('M/d').format(weeks[i]),
+    return Semantics(
+      label: '최근 8주간 주별 러닝 거리 막대 그래프',
+      child: Card(
+        child: Padding(
+          padding: AppSpacing.chartPadding,
+          child: SizedBox(
+            height: 180,
+            child: BarChart(
+              BarChartData(
+                gridData: const FlGridData(show: false),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
+                  leftTitles: const AxisTitles(),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (v, _) {
+                        final i = v.toInt();
+                        if (i < 0 || i >= weeks.length) {
+                          return const SizedBox.shrink();
+                        }
+                        return Text(
+                          DateFormat('M/d').format(weeks[i]),
                           style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 10));
-                    },
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
-              barTouchData: BarTouchData(
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipItem: (group, _, rod, _) => BarTooltipItem(
-                    '${rod.toY.toStringAsFixed(1)} km',
-                    const TextStyle(
-                        color: AppColors.neon, fontWeight: FontWeight.w700),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipItem: (group, _, rod, _) => BarTooltipItem(
+                      '${rod.toY.toStringAsFixed(1)} km',
+                      const TextStyle(
+                        color: AppColors.neon,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ),
+                barGroups: List.generate(weeks.length, (i) {
+                  final km = weeklyKm[weeks[i]] ?? 0;
+                  final isThisWeek = weeks[i] == thisWeek;
+                  return BarChartGroupData(x: i, barRods: [
+                    BarChartRodData(
+                      toY: km,
+                      width: 18,
+                      borderRadius: AppRadius.br4,
+                      color: isThisWeek
+                          ? AppColors.neon
+                          : AppColors.neon.withValues(alpha: 0.4),
+                    ),
+                  ]);
+                }),
               ),
-              barGroups: List.generate(weeks.length, (i) {
-                final km = weeklyKm[weeks[i]] ?? 0;
-                final isThisWeek = weeks[i] == thisWeek;
-                return BarChartGroupData(x: i, barRods: [
-                  BarChartRodData(
-                    toY: km,
-                    width: 18,
-                    borderRadius: BorderRadius.circular(5),
-                    color: isThisWeek
-                        ? AppColors.neon
-                        : AppColors.neon.withValues(alpha: 0.4),
-                  ),
-                ]);
-              }),
             ),
           ),
         ),
@@ -489,8 +504,8 @@ class AnalysisScreen extends ConsumerWidget {
         .toList(); // 과거 → 최근
     if (ordered.length < 2) {
       return const Padding(
-        padding: EdgeInsets.all(20),
-        child: Text('러닝 2회 이상부터 추이를 보여드려요', style: kMetricLabelStyle),
+        padding: AppSpacing.screenPadding,
+        child: Text('러닝 2회 이상부터 추이를 보여드려요', style: AppTypography.metricLabel),
       );
     }
     final spots = List.generate(
@@ -507,70 +522,89 @@ class AnalysisScreen extends ConsumerWidget {
       return "$m'${s.toString().padLeft(2, '0')}\"";
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 18, 18, 8),
-        child: SizedBox(
-          height: 180,
-          child: LineChart(
-            LineChartData(
-              minY: minY,
-              maxY: maxY,
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                horizontalInterval: 0.5,
-                getDrawingHorizontalLine: (v) => FlLine(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  strokeWidth: 1,
-                ),
-              ),
-              lineTouchData: LineTouchData(
-                touchTooltipData: LineTouchTooltipData(
-                  getTooltipItems: (spots) => spots
-                      .map((s) => LineTooltipItem(
-                            fmtMin(s.y),
-                            const TextStyle(
-                                color: AppColors.neon,
-                                fontWeight: FontWeight.w700),
-                          ))
-                      .toList(),
-                ),
-              ),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(),
-                rightTitles: const AxisTitles(),
-                bottomTitles: const AxisTitles(
-                  axisNameSize: 18,
-                  axisNameWidget: Text('← 과거          최근 →',
-                      style: TextStyle(
-                          color: AppColors.textSecondary, fontSize: 10)),
-                ),
-                leftTitles: AxisTitles(
-                  axisNameSize: 16,
-                  axisNameWidget: const Text('페이스 (분/km)',
-                      style: TextStyle(
-                          color: AppColors.textSecondary, fontSize: 10)),
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    interval: 0.5,
-                    reservedSize: 44,
-                    getTitlesWidget: (v, _) => Text(fmtMin(v),
-                        style: const TextStyle(
-                            color: AppColors.textSecondary, fontSize: 10)),
+    return Semantics(
+      label: '회차별 1km당 평균 페이스 변화 선 그래프',
+      child: Card(
+        child: Padding(
+          padding: AppSpacing.chartPadding,
+          child: SizedBox(
+            height: 180,
+            child: LineChart(
+              LineChartData(
+                minY: minY,
+                maxY: maxY,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: 0.5,
+                  getDrawingHorizontalLine: (v) => FlLine(
+                    color: AppColors.borderFaint,
+                    strokeWidth: 1,
                   ),
                 ),
-              ),
-              borderData: FlBorderData(show: false),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: spots,
-                  isCurved: true,
-                  color: AppColors.neon,
-                  barWidth: 2.5,
-                  dotData: const FlDotData(show: true),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (spots) => spots
+                        .map((s) => LineTooltipItem(
+                              fmtMin(s.y),
+                              const TextStyle(
+                                color: AppColors.neon,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ))
+                        .toList(),
+                  ),
                 ),
-              ],
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
+                  bottomTitles: const AxisTitles(
+                    axisNameSize: 18,
+                    axisNameWidget: Text(
+                      '← 과거          최근 →',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    axisNameSize: 16,
+                    axisNameWidget: const Text(
+                      '페이스 (분/km)',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 0.5,
+                      reservedSize: 44,
+                      getTitlesWidget: (v, _) => Text(
+                        fmtMin(v),
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    color: AppColors.neon,
+                    barWidth: 2.5,
+                    dotData: const FlDotData(show: true),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -593,107 +627,135 @@ class AnalysisScreen extends ConsumerWidget {
     final up = delta >= 0;
     final deltaColor = up ? AppColors.neon : AppColors.danger;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(latest.$2.toStringAsFixed(1),
-                    style: kMetricStyle.copyWith(
-                        color: AppColors.zoneColors[1], fontSize: 34)),
-                const SizedBox(width: 6),
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 4),
-                  child: Text('ml/kg/분', style: kMetricLabelStyle),
-                ),
-                if (series.length >= 2) ...[
-                  const SizedBox(width: 10),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: [
-                        Icon(up ? Icons.arrow_upward : Icons.arrow_downward,
-                            size: 13, color: deltaColor),
-                        Text('${delta.abs().toStringAsFixed(1)} (90일)',
-                            style: TextStyle(
-                                color: deltaColor,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700)),
-                      ],
+    return Semantics(
+      label: '최대 산소 섭취량 VO2max: 최신 ${latest.$2.toStringAsFixed(1)} ml/kg/분',
+      child: Card(
+        child: Padding(
+          padding: AppSpacing.cardPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    latest.$2.toStringAsFixed(1),
+                    style: AppTypography.largeMetric.copyWith(
+                      color: AppColors.zoneColors[1],
                     ),
                   ),
-                ],
-                const Spacer(),
-                Text(DateFormat('M/d 기준').format(latest.$1),
-                    style: kMetricLabelStyle),
-              ],
-            ),
-            if (series.length >= 2) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 120,
-                child: LineChart(
-                  LineChartData(
-                    minY: minY,
-                    maxY: maxY,
-                    gridData: const FlGridData(show: false),
-                    borderData: FlBorderData(show: false),
-                    lineTouchData: LineTouchData(
-                      touchTooltipData: LineTouchTooltipData(
-                        getTooltipItems: (spots) => spots
-                            .map((s) => LineTooltipItem(
-                                  s.y.toStringAsFixed(1),
-                                  TextStyle(
-                                      color: AppColors.zoneColors[1],
-                                      fontWeight: FontWeight.w700),
-                                ))
-                            .toList(),
+                  AppSpacing.gapW6,
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 4),
+                    child: Text('ml/kg/분', style: AppTypography.metricLabel),
+                  ),
+                  if (series.length >= 2) ...[
+                    AppSpacing.gapW10,
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Icon(
+                            up ? Icons.arrow_upward : Icons.arrow_downward,
+                            size: AppIconSizes.xs,
+                            color: deltaColor,
+                          ),
+                          Text(
+                            '${delta.abs().toStringAsFixed(1)} (90일)',
+                            style: TextStyle(
+                              color: deltaColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    titlesData: FlTitlesData(
-                      topTitles: const AxisTitles(),
-                      rightTitles: const AxisTitles(),
-                      bottomTitles: const AxisTitles(
-                        axisNameSize: 18,
-                        axisNameWidget: Text('← 과거          최근 →',
-                            style: TextStyle(
-                                color: AppColors.textSecondary, fontSize: 10)),
+                  ],
+                  const Spacer(),
+                  Text(
+                    DateFormat('M/d 기준').format(latest.$1),
+                    style: AppTypography.metricLabel,
+                  ),
+                ],
+              ),
+              if (series.length >= 2) ...[
+                AppSpacing.gapH12,
+                SizedBox(
+                  height: 120,
+                  child: LineChart(
+                    LineChartData(
+                      minY: minY,
+                      maxY: maxY,
+                      gridData: const FlGridData(show: false),
+                      borderData: FlBorderData(show: false),
+                      lineTouchData: LineTouchData(
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipItems: (spots) => spots
+                              .map((s) => LineTooltipItem(
+                                    s.y.toStringAsFixed(1),
+                                    TextStyle(
+                                      color: AppColors.zoneColors[1],
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ))
+                              .toList(),
+                        ),
                       ),
-                      leftTitles: AxisTitles(
-                        axisNameSize: 16,
-                        axisNameWidget: const Text('ml/kg/분',
+                      titlesData: FlTitlesData(
+                        topTitles: const AxisTitles(),
+                        rightTitles: const AxisTitles(),
+                        bottomTitles: const AxisTitles(
+                          axisNameSize: 18,
+                          axisNameWidget: Text(
+                            '← 과거          최근 →',
                             style: TextStyle(
-                                color: AppColors.textSecondary, fontSize: 10)),
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          interval: 1,
-                          reservedSize: 42,
-                          getTitlesWidget: (v, _) => Text(
-                            v.toStringAsFixed(1),
-                            style: const TextStyle(
-                                color: AppColors.textSecondary, fontSize: 10),
+                              color: AppColors.textSecondary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        leftTitles: AxisTitles(
+                          axisNameSize: 16,
+                          axisNameWidget: const Text(
+                            'ml/kg/분',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            interval: 1,
+                            reservedSize: 42,
+                            getTitlesWidget: (v, _) => Text(
+                              v.toStringAsFixed(1),
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
                       ),
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: spots,
+                          isCurved: true,
+                          color: AppColors.zoneColors[1],
+                          barWidth: 2.5,
+                          dotData: const FlDotData(show: true),
+                        ),
+                      ],
                     ),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: spots,
-                        isCurved: true,
-                        color: AppColors.zoneColors[1],
-                        barWidth: 2.5,
-                        dotData: const FlDotData(show: true),
-                      ),
-                    ],
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -701,22 +763,26 @@ class AnalysisScreen extends ConsumerWidget {
 
   Widget _pbCard(StatsSummary stats) {
     Widget row(String label, String value) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
           child: Row(
             children: [
-              Text(label, style: kMetricLabelStyle),
+              Text(label, style: AppTypography.metricLabel),
               const Spacer(),
-              Text(value,
-                  style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800)),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ],
           ),
         );
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPadding,
         child: Column(
           children: [
             row('최장 거리', '${stats.longestRunKm.toStringAsFixed(2)} km'),
@@ -815,7 +881,7 @@ class _GoalRecommendCardState extends ConsumerState<_GoalRecommendCard> {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -823,10 +889,10 @@ class _GoalRecommendCardState extends ConsumerState<_GoalRecommendCard> {
               children: [
                 const Icon(
                   Icons.auto_awesome,
-                  size: 16,
+                  size: AppIconSizes.sm,
                   color: AppColors.neon,
                 ),
-                const SizedBox(width: 6),
+                AppSpacing.gapW6,
                 const Text(
                   '다음 목표',
                   style: TextStyle(
@@ -838,8 +904,8 @@ class _GoalRecommendCardState extends ConsumerState<_GoalRecommendCard> {
                 const Spacer(),
                 if (_loading)
                   const SizedBox(
-                    width: 16,
-                    height: 16,
+                    width: AppIconSizes.sm,
+                    height: AppIconSizes.sm,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 else
@@ -851,7 +917,7 @@ class _GoalRecommendCardState extends ConsumerState<_GoalRecommendCard> {
             ),
             if (_error != null)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: AppSpacing.s8),
                 child: Text(
                   _error!,
                   style: const TextStyle(
@@ -862,30 +928,26 @@ class _GoalRecommendCardState extends ConsumerState<_GoalRecommendCard> {
               )
             else if (_recommendation != null) ...[
               Padding(
-                padding: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.only(top: AppSpacing.s10),
                 child: Text(
                   _recommendation!,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13.5,
-                    height: 1.5,
-                  ),
+                  style: AppTypography.bodyMedium,
                 ),
               ),
               if (_recommendedAt != null)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: AppSpacing.s8),
                   child: Text(
                     '${DateFormat('M/d HH:mm').format(_recommendedAt!)} 생성',
-                    style: kMetricLabelStyle,
+                    style: AppTypography.metricLabel,
                   ),
                 ),
             ] else if (!_loading)
               const Padding(
-                padding: EdgeInsets.only(top: 6),
+                padding: EdgeInsets.only(top: AppSpacing.s6),
                 child: Text(
                   '버튼을 눌러 다음 1~2주 러닝 목표를 추천받아보세요',
-                  style: kMetricLabelStyle,
+                  style: AppTypography.metricLabel,
                 ),
               ),
           ],

@@ -64,8 +64,8 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
           : _error != null
               ? Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(_error!, style: kMetricLabelStyle),
+                    padding: AppSpacing.all24,
+                    child: Text(_error!, style: AppTypography.metricLabel),
                   ),
                 )
               : ListView(
@@ -91,25 +91,39 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text('$label (${rows.length}건)',
-              style: const TextStyle(
-                  color: AppColors.neon, fontWeight: FontWeight.w800)),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.s16,
+            AppSpacing.s16,
+            AppSpacing.s16,
+            AppSpacing.s4,
+          ),
+          child: Text(
+            '$label (${rows.length}건)',
+            style: const TextStyle(
+              color: AppColors.neon,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
         if (rows.isEmpty)
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.s16,
+              vertical: AppSpacing.s8,
+            ),
             child: Text('기록 없음'),
           )
         else
           ...rows.map((r) => Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s16,
+                  vertical: AppSpacing.s6,
+                ),
                 child: Text(
                   r.containsKey('error') ? '오류: ${r['error']}' : format(r),
                   style: r.containsKey('error')
                       ? const TextStyle(color: Colors.redAccent)
-                      : kMetricLabelStyle,
+                      : AppTypography.metricLabel,
                 ),
               )),
       ],

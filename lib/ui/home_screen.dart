@@ -85,12 +85,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.card,
-        title: Text('새 버전 v${update.version}'),
+        shape: const RoundedRectangleBorder(
+          borderRadius: AppRadius.br20,
+        ),
+        title: Text('새 버전 v${update.version}', style: AppTypography.titleLarge),
         content: Text(
           update.notes.trim().isEmpty
               ? '새 버전이 있습니다. 지금 업데이트할까요?'
               : update.notes,
-          style: kMetricLabelStyle,
+          style: AppTypography.metricLabel,
         ),
         actions: [
           TextButton(
@@ -120,7 +123,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.card,
-        title: const Text('다운로드 중'),
+        shape: const RoundedRectangleBorder(
+          borderRadius: AppRadius.br20,
+        ),
+        title: const Text('다운로드 중', style: AppTypography.titleLarge),
         content: ValueListenableBuilder<double>(
           valueListenable: progress,
           builder: (_, v, _) => Column(
@@ -131,9 +137,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: AppColors.neon,
                 backgroundColor: Colors.white12,
               ),
-              const SizedBox(height: 12),
-              Text('${(v * 100).toStringAsFixed(0)}%',
-                  style: kMetricLabelStyle),
+              AppSpacing.gapH12,
+              Text(
+                '${(v * 100).toStringAsFixed(0)}%',
+                style: AppTypography.metricLabel,
+              ),
             ],
           ),
         ),
@@ -152,10 +160,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     } catch (e) {
       if (!mounted) return;
       if (!dialogDismissed) Navigator.pop(context);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(
-              content: Text(
-                  '업데이트 ${downloadCompleted ? '설치' : '다운로드'} 실패: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('업데이트 ${downloadCompleted ? '설치' : '다운로드'} 실패: $e'),
+        ),
+      );
     } finally {
       progress.dispose();
     }
@@ -188,36 +197,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-            title: Row(
-              children: [
-                Text('RunLog'),
-                SizedBox(width: 8),
-                if (_appVersion != null)
-                  Text(
-                    'v$_appVersion',
-                    style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w400),
-                  ),
-              ],
-            ),
+        title: Row(
+          children: [
+            const Text('RunLog'),
+            AppSpacing.gapW8,
+            if (_appVersion != null)
+              Text(
+                'v$_appVersion',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+          ],
+        ),
         actions: [
           if (_syncing)
             const Padding(
-              padding: EdgeInsets.all(14),
+              padding: EdgeInsets.all(AppSpacing.s14),
               child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2)),
+                width: AppIconSizes.standard,
+                height: AppIconSizes.standard,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
             )
           else
             IconButton(
-              icon: const Icon(Icons.sync, color: AppColors.neon),
+              icon: const Icon(
+                Icons.sync,
+                color: AppColors.neon,
+                size: AppIconSizes.lg,
+              ),
               tooltip: 'Health Connect 동기화',
               onPressed: _sync,
             ),
           PopupMenuButton<String>(
+            tooltip: '더보기 메뉴',
+            icon: const Icon(Icons.more_vert, size: AppIconSizes.lg),
             onSelected: (v) async {
               final notifier = ref.read(runsProvider.notifier);
               if (v == 'import') {
@@ -266,55 +283,60 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            const SizedBox(height: 12),
+            AppSpacing.gapH12,
             Center(
               child: WeeklyRing(
                 weekKm: stats.weekKm,
                 weekRuns: stats.weekRuns,
               ),
             ),
-            const SizedBox(height: 8),
+            AppSpacing.gapH8,
             Center(
               child: Text(
                 lastSync == null
                     ? '동기화 전 — 위로 당기거나 ↻ 를 눌러 가져오기'
                     : '마지막 동기화 ${DateFormat('M/d HH:mm').format(lastSync)}',
-                style: kMetricLabelStyle,
+                style: AppTypography.metricLabel,
               ),
             ),
-            const SizedBox(height: 8),
+            AppSpacing.gapH8,
             LevelCard(totalKm: stats.totalKm),
             _summaryRow(stats),
             const Padding(
-              padding: EdgeInsets.fromLTRB(20, 18, 20, 4),
-              child: Text('최근 러닝',
-                  style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800)),
+              padding: AppSpacing.sectionHeaderTopPadding,
+              child: Text(
+                '최근 러닝',
+                style: AppTypography.titleMedium,
+              ),
             ),
             ...runsAsync.when(
               data: (runs) => runs.isEmpty
                   ? [
                       Padding(
-                        padding: const EdgeInsets.all(32),
+                        padding: AppSpacing.all32,
                         child: Column(
                           children: [
                             const Text(
-                                '아직 기록이 없어요.\n동기화하거나 이전 기록을 가져와보세요!',
-                                textAlign: TextAlign.center,
-                                style: kMetricLabelStyle),
-                            const SizedBox(height: 16),
+                              '아직 기록이 없어요.\n동기화하거나 이전 기록을 가져와보세요!',
+                              textAlign: TextAlign.center,
+                              style: AppTypography.metricLabel,
+                            ),
+                            AppSpacing.gapH16,
                             OutlinedButton.icon(
-                              icon: const Icon(Icons.history,
-                                  color: AppColors.neon),
-                              label: const Text('이전 기록 가져오기',
-                                  style:
-                                      TextStyle(color: AppColors.neon)),
+                              icon: const Icon(
+                                Icons.history,
+                                color: AppColors.neon,
+                                size: AppIconSizes.md,
+                              ),
+                              label: const Text(
+                                '이전 기록 가져오기',
+                                style: TextStyle(color: AppColors.neon),
+                              ),
                               onPressed: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (_) => const ImportScreen()),
+                                  builder: (_) => const ImportScreen(),
+                                ),
                               ),
                             ),
                           ],
@@ -328,22 +350,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (_) => RunDetailScreen(runId: r.id)),
+                                builder: (_) => RunDetailScreen(runId: r.id),
+                              ),
                             ),
                           ))
                       .toList(),
               loading: () => const [
-                Center(child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: CircularProgressIndicator()))
+                Center(
+                  child: Padding(
+                    padding: AppSpacing.all32,
+                    child: CircularProgressIndicator(),
+                  ),
+                )
               ],
               error: (e, _) => [
                 Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Text('오류: $e', style: kMetricLabelStyle))
+                  padding: AppSpacing.all32,
+                  child: Text('오류: $e', style: AppTypography.metricLabel),
+                )
               ],
             ),
-            const SizedBox(height: 24),
+            AppSpacing.gapH24,
           ],
         ),
       ),
@@ -351,26 +378,46 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _summaryRow(StatsSummary stats) {
-    Widget cell(String value, String label) => Expanded(
-          child: Column(
-            children: [
-              Text(value,
+    Widget cell(String value, String label, String semantic) => Expanded(
+          child: Semantics(
+            label: semantic,
+            child: Column(
+              children: [
+                Text(
+                  value,
                   style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800)),
-              Text(label, style: kMetricLabelStyle),
-            ],
+                    color: AppColors.textPrimary,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(label, style: AppTypography.metricLabel),
+              ],
+            ),
           ),
         );
+
     return Card(
+      color: AppColors.cardElevated,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.s14),
         child: Row(
           children: [
-            cell('${stats.totalKm.toStringAsFixed(1)} km', '누적 거리'),
-            cell('${stats.totalRuns}회', '총 러닝'),
-            cell('${stats.currentStreakWeeks}주', '주3회 스트릭'),
+            cell(
+              '${stats.totalKm.toStringAsFixed(1)} km',
+              '누적 거리',
+              '누적 거리: ${stats.totalKm.toStringAsFixed(1)}킬로미터',
+            ),
+            cell(
+              '${stats.totalRuns}회',
+              '총 러닝',
+              '총 러닝: ${stats.totalRuns}회',
+            ),
+            cell(
+              '${stats.currentStreakWeeks}주',
+              '주3회 스트릭',
+              '주3회 스트릭: ${stats.currentStreakWeeks}주 연속 달성',
+            ),
           ],
         ),
       ),

@@ -22,22 +22,21 @@ class AchievementsScreen extends ConsumerWidget {
         title: Text('업적  ${earned.length}/${kBadges.length}'),
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: const EdgeInsets.only(bottom: AppSpacing.s32),
         children: [
           for (final category in BadgeCategory.values) ...[
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
-              child: Text(category.label,
-                  style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800)),
+              padding: AppSpacing.sectionHeaderTopPadding,
+              child: Text(
+                category.label,
+                style: AppTypography.titleMedium,
+              ),
             ),
             GridView.count(
               crossAxisCount: 3,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s12),
               childAspectRatio: 0.72,
               children: kBadges
                   .where((b) => b.category == category)
@@ -67,6 +66,8 @@ class _BadgeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEarned = earned != null;
+    final semanticLabel =
+        '${badge.title} 배지. ${isEarned ? '${DateFormat('yyyy년 M월 d일').format(earned!.earnedAt)} 획득 완료' : '미획득, ${progress ?? badge.description}'}';
 
     Widget image = ClipOval(
       child: Image.asset(
@@ -89,39 +90,44 @@ class _BadgeTile extends StatelessWidget {
       );
     }
 
-    return GestureDetector(
-      onTap: () => _showDetail(context),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Column(
-          children: [
-            Expanded(child: image),
-            const SizedBox(height: 6),
-            Text(
-              badge.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isEarned
-                    ? AppColors.textPrimary
-                    : AppColors.textSecondary,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
+    return Semantics(
+      label: semanticLabel,
+      button: true,
+      hint: '탭하여 배지 상세 정보를 확인합니다.',
+      child: GestureDetector(
+        onTap: () => _showDetail(context),
+        child: Padding(
+          padding: AppSpacing.all6,
+          child: Column(
+            children: [
+              Expanded(child: image),
+              AppSpacing.gapH6,
+              Text(
+                badge.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isEarned
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
               ),
-            ),
-            Text(
-              isEarned
-                  ? DateFormat('yyyy.M.d').format(earned!.earnedAt)
-                  : (progress ?? badge.description),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isEarned ? AppColors.neon : AppColors.textSecondary,
-                fontSize: 10.5,
-                fontWeight: isEarned ? FontWeight.w700 : FontWeight.w400,
+              Text(
+                isEarned
+                    ? DateFormat('yyyy.M.d').format(earned!.earnedAt)
+                    : (progress ?? badge.description),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isEarned ? AppColors.neon : AppColors.textSecondary,
+                  fontSize: 10.5,
+                  fontWeight: isEarned ? FontWeight.w700 : FontWeight.w400,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -137,68 +143,79 @@ class _BadgeTile extends StatelessWidget {
         maxHeight: MediaQuery.sizeOf(context).height * 0.7,
       ),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: AppRadius.bottomSheetTop,
       ),
       builder: (ctx) => SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.fromLTRB(
-              28, 16, 28, 28 + MediaQuery.viewPaddingOf(ctx).bottom),
+            AppSpacing.s28,
+            AppSpacing.s16,
+            AppSpacing.s28,
+            AppSpacing.s28 + MediaQuery.viewPaddingOf(ctx).bottom,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 width: 40,
                 height: 4,
-                margin: const EdgeInsets.only(bottom: 18),
+                margin: const EdgeInsets.only(bottom: AppSpacing.s18),
                 decoration: BoxDecoration(
                   color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: AppRadius.br4,
                 ),
               ),
-            SizedBox(
-              width: 170,
-              height: 170,
-              child: earned != null
-                  ? ClipOval(child: Image.asset(badge.assetPath))
-                  : Opacity(
-                      opacity: 0.4,
-                      child: ColorFiltered(
-                        colorFilter: const ColorFilter.matrix(<double>[
-                          0.2126, 0.7152, 0.0722, 0, 0,
-                          0.2126, 0.7152, 0.0722, 0, 0,
-                          0.2126, 0.7152, 0.0722, 0, 0,
-                          0, 0, 0, 1, 0,
-                        ]),
-                        child: ClipOval(child: Image.asset(badge.assetPath)),
+              SizedBox(
+                width: 170,
+                height: 170,
+                child: earned != null
+                    ? ClipOval(child: Image.asset(badge.assetPath))
+                    : Opacity(
+                        opacity: 0.4,
+                        child: ColorFiltered(
+                          colorFilter: const ColorFilter.matrix(<double>[
+                            0.2126, 0.7152, 0.0722, 0, 0,
+                            0.2126, 0.7152, 0.0722, 0, 0,
+                            0.2126, 0.7152, 0.0722, 0, 0,
+                            0, 0, 0, 1, 0,
+                          ]),
+                          child: ClipOval(child: Image.asset(badge.assetPath)),
+                        ),
                       ),
-                    ),
-            ),
-            const SizedBox(height: 18),
-            Text(badge.title,
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900)),
-            const SizedBox(height: 6),
-            Text(badge.description,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 14)),
-            const SizedBox(height: 10),
-            if (earned != null)
+              ),
+              AppSpacing.gapH18,
               Text(
-                '${DateFormat('yyyy년 M월 d일').format(earned!.earnedAt)} 획득',
+                badge.title,
+                style: AppTypography.titleLarge.copyWith(fontSize: 22),
+              ),
+              AppSpacing.gapH6,
+              Text(
+                badge.description,
                 style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                ),
+              ),
+              AppSpacing.gapH10,
+              if (earned != null)
+                Text(
+                  '${DateFormat('yyyy년 M월 d일').format(earned!.earnedAt)} 획득',
+                  style: const TextStyle(
                     color: AppColors.neon,
                     fontSize: 14,
-                    fontWeight: FontWeight.w700),
-              )
-            else if (progress != null)
-              Text(progress!,
+                    fontWeight: FontWeight.w700,
+                  ),
+                )
+              else if (progress != null)
+                Text(
+                  progress!,
                   style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              AppSpacing.gapH8,
             ],
           ),
         ),

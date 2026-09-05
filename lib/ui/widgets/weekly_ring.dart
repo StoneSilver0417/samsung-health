@@ -22,36 +22,44 @@ class WeeklyRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 190,
-      height: 190,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          CustomPaint(
-            size: const Size(190, 190),
-            painter: _RingPainter(
-              distProgress: (weekKm / goalKm).clamp(0.0, 1.0),
-              runsProgress: (weekRuns / goalRuns).clamp(0.0, 1.0),
-            ),
-          ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(weekKm.toStringAsFixed(1), style: kMetricStyle),
-              const Text('km 이번 주', style: kMetricLabelStyle),
-              const SizedBox(height: 4),
-              Text(
-                '$weekRuns / $goalRuns 회',
-                style: const TextStyle(
-                  color: AppColors.neon,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
+    final distProgressPct = ((weekKm / goalKm) * 100).round();
+    final semanticLabel =
+        '이번 주 러닝 진행 상황: ${weekKm.toStringAsFixed(1)}km 달성 (목표 ${goalKm.toStringAsFixed(0)}km 대비 $distProgressPct%), 총 $weekRuns회 달리기 (목표 $goalRuns회)';
+
+    return Semantics(
+      label: semanticLabel,
+      container: true,
+      child: SizedBox(
+        width: 190,
+        height: 190,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CustomPaint(
+              size: const Size(190, 190),
+              painter: _RingPainter(
+                distProgress: (weekKm / goalKm).clamp(0.0, 1.0),
+                runsProgress: (weekRuns / goalRuns).clamp(0.0, 1.0),
               ),
-            ],
-          ),
-        ],
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(weekKm.toStringAsFixed(1), style: AppTypography.heroMetric),
+                const Text('km 이번 주', style: AppTypography.metricLabel),
+                AppSpacing.gapH4,
+                Text(
+                  '$weekRuns / $goalRuns 회',
+                  style: const TextStyle(
+                    color: AppColors.neon,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

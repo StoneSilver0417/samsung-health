@@ -69,41 +69,46 @@ class _CalendarHeatmapState extends State<CalendarHeatmap> {
         Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.chevron_left,
-                  color: AppColors.textSecondary),
+              icon: const Icon(
+                Icons.chevron_left,
+                color: AppColors.textSecondary,
+                size: AppIconSizes.lg,
+              ),
+              tooltip: '이전 달',
               onPressed: () => setState(
                   () => _month = DateTime(_month.year, _month.month - 1, 1)),
             ),
             Expanded(
               child: Column(
                 children: [
-                  Text('${_month.year}년 ${_month.month}월',
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800)),
+                  Text(
+                    '${_month.year}년 ${_month.month}월',
+                    style: AppTypography.titleLarge.copyWith(fontSize: 16),
+                  ),
                   Text(
                     monthRuns == 0
                         ? '기록 없음'
                         : '$monthRuns회 · ${monthKm.toStringAsFixed(1)} km',
-                    style: kMetricLabelStyle,
+                    style: AppTypography.metricLabel,
                   ),
                 ],
               ),
             ),
             IconButton(
-              icon: Icon(Icons.chevron_right,
-                  color: canGoNext
-                      ? AppColors.textSecondary
-                      : Colors.white24),
+              icon: Icon(
+                Icons.chevron_right,
+                color: canGoNext ? AppColors.textSecondary : Colors.white24,
+                size: AppIconSizes.lg,
+              ),
+              tooltip: canGoNext ? '다음 달' : null,
               onPressed: canGoNext
-                  ? () => setState(() =>
-                      _month = DateTime(_month.year, _month.month + 1, 1))
+                  ? () => setState(
+                      () => _month = DateTime(_month.year, _month.month + 1, 1))
                   : null,
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        AppSpacing.gapH8,
         Row(
           children: List.generate(7, (i) {
             final isWeekend = i == 0 || i == 6;
@@ -113,7 +118,7 @@ class _CalendarHeatmapState extends State<CalendarHeatmap> {
                   weekdayLabels[i],
                   style: TextStyle(
                     color: isWeekend
-                        ? AppColors.danger.withValues(alpha: 0.8)
+                        ? const Color(0xFFFF7A7A)
                         : AppColors.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -123,7 +128,7 @@ class _CalendarHeatmapState extends State<CalendarHeatmap> {
             );
           }),
         ),
-        const SizedBox(height: 4),
+        AppSpacing.gapH4,
         ...List.generate(rows, (row) {
           return Row(
             children: List.generate(7, (col) {
@@ -139,52 +144,65 @@ class _CalendarHeatmapState extends State<CalendarHeatmap> {
               final hasRun = rs != null;
               final isFuture = date.isAfter(todayDate);
 
+              final semanticText =
+                  '${date.month}월 ${date.day}일, ${hasRun ? '${km.toStringAsFixed(1)}km 러닝 (${rs.length}회)' : '러닝 기록 없음'}${isToday ? ', 오늘' : ''}';
+
               return Expanded(
-                child: GestureDetector(
-                  onTap: isFuture
+                child: Semantics(
+                  label: semanticText,
+                  button: !isFuture,
+                  hint: isFuture
                       ? null
                       : hasRun
-                          ? widget.onDayTap == null
-                              ? null
-                              : () => widget.onDayTap!(rs)
-                          : widget.onEmptyDayTap == null
-                              ? null
-                              : () => widget.onEmptyDayTap!(date),
-                  child: Container(
-                    height: 44,
-                    margin: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: hasRun ? _fillColor(km) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                      border: isToday
-                          ? Border.all(color: AppColors.neon, width: 1.5)
-                          : null,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '$dayNum',
-                          style: TextStyle(
-                            color: hasRun
-                                ? Colors.black
-                                : (col == 0 || col == 6
-                                    ? AppColors.danger.withValues(alpha: 0.7)
-                                    : AppColors.textPrimary),
-                            fontSize: 13,
-                            fontWeight:
-                                hasRun ? FontWeight.w900 : FontWeight.w500,
-                          ),
-                        ),
-                        if (hasRun)
+                          ? '탭하여 해당 날짜의 러닝 기록 상세를 확인합니다.'
+                          : '탭하여 이 날짜에 수동으로 기록을 추가합니다.',
+                  child: GestureDetector(
+                    onTap: isFuture
+                        ? null
+                        : hasRun
+                            ? widget.onDayTap == null
+                                ? null
+                                : () => widget.onDayTap!(rs)
+                            : widget.onEmptyDayTap == null
+                                ? null
+                                : () => widget.onEmptyDayTap!(date),
+                    child: Container(
+                      height: 44,
+                      margin: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: hasRun ? _fillColor(km) : Colors.transparent,
+                        borderRadius: AppRadius.br8,
+                        border: isToday
+                            ? Border.all(color: AppColors.neon, width: 1.5)
+                            : null,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
                           Text(
-                            km.toStringAsFixed(1),
-                            style: const TextStyle(
+                            '$dayNum',
+                            style: TextStyle(
+                              color: hasRun
+                                  ? Colors.black
+                                  : (col == 0 || col == 6
+                                      ? const Color(0xFFFF7A7A)
+                                      : AppColors.textPrimary),
+                              fontSize: 13,
+                              fontWeight:
+                                  hasRun ? FontWeight.w900 : FontWeight.w500,
+                            ),
+                          ),
+                          if (hasRun)
+                            Text(
+                              km.toStringAsFixed(1),
+                              style: const TextStyle(
                                 color: Colors.black,
                                 fontSize: 9,
-                                fontWeight: FontWeight.w700),
-                          ),
-                      ],
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

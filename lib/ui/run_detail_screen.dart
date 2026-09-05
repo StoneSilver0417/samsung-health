@@ -23,7 +23,9 @@ class RunDetailScreen extends ConsumerWidget {
     if (run == null) {
       return Scaffold(
         appBar: AppBar(),
-        body: const Center(child: Text('기록을 찾을 수 없습니다')),
+        body: const Center(
+          child: Text('기록을 찾을 수 없습니다', style: AppTypography.bodyMedium),
+        ),
       );
     }
 
@@ -34,7 +36,11 @@ class RunDetailScreen extends ConsumerWidget {
           if (run.sourceName == 'manual')
             IconButton(
               tooltip: '기록 수정',
-              icon: const Icon(Icons.edit_outlined, color: AppColors.neon),
+              icon: const Icon(
+                Icons.edit_outlined,
+                color: AppColors.neon,
+                size: AppIconSizes.lg,
+              ),
               onPressed: () {
                 Navigator.push(
                   context,
@@ -45,22 +51,40 @@ class RunDetailScreen extends ConsumerWidget {
               },
             ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+            tooltip: '기록 삭제',
+            icon: const Icon(
+              Icons.delete_outline,
+              color: AppColors.danger,
+              size: AppIconSizes.lg,
+            ),
             onPressed: () async {
               final ok = await showDialog<bool>(
                 context: context,
                 builder: (ctx) => AlertDialog(
                   backgroundColor: AppColors.card,
-                  title: const Text('기록 삭제'),
-                  content: const Text('이 러닝 기록을 삭제할까요?'),
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: AppRadius.br20,
+                  ),
+                  title: const Text('기록 삭제', style: AppTypography.titleLarge),
+                  content: const Text(
+                    '이 러닝 기록을 삭제할까요?',
+                    style: AppTypography.bodySmall,
+                  ),
                   actions: [
                     TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('취소')),
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('취소'),
+                    ),
                     TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('삭제',
-                            style: TextStyle(color: AppColors.danger))),
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text(
+                        '삭제',
+                        style: TextStyle(
+                          color: AppColors.danger,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               );
@@ -73,7 +97,7 @@ class RunDetailScreen extends ConsumerWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: const EdgeInsets.only(bottom: AppSpacing.s32),
         children: [
           _header(run),
           _AiSummaryCard(
@@ -112,12 +136,8 @@ class RunDetailScreen extends ConsumerWidget {
   }
 
   Widget _sectionTitle(String t) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
-        child: Text(t,
-            style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 17,
-                fontWeight: FontWeight.w800)),
+        padding: AppSpacing.sectionHeaderPadding,
+        child: Text(t, style: AppTypography.titleMedium),
       );
 
   Widget _header(RunSession run) {
@@ -137,38 +157,45 @@ class RunDetailScreen extends ConsumerWidget {
         ('${run.steps}', '총 걸음'),
     ];
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          children: [
-            Text('${run.distanceKm.toStringAsFixed(2)} km',
-                style: kMetricStyle.copyWith(color: AppColors.neon)),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 16,
-              alignment: WrapAlignment.center,
-              children: cells
-                  .map((c) => SizedBox(
-                        width: 86,
-                        child: Column(
-                          children: [
-                            Text(c.$1,
-                                style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w900)),
-                            const SizedBox(height: 2),
-                            Text(c.$2,
+    return Semantics(
+      label: '러닝 요약: 거리 ${run.distanceKm.toStringAsFixed(2)}km, 시간 ${fmtDuration(run.durationSec)}, 평균 페이스 ${fmtPace(run.avgPaceSecPerKm)}',
+      child: Card(
+        color: AppColors.cardElevated,
+        child: Padding(
+          padding: AppSpacing.cardPaddingLarge,
+          child: Column(
+            children: [
+              Text(
+                '${run.distanceKm.toStringAsFixed(2)} km',
+                style: AppTypography.heroMetric.copyWith(color: AppColors.neon),
+              ),
+              AppSpacing.gapH16,
+              Wrap(
+                spacing: AppSpacing.s8,
+                runSpacing: AppSpacing.s16,
+                alignment: WrapAlignment.center,
+                children: cells
+                    .map((c) => SizedBox(
+                          width: 86,
+                          child: Column(
+                            children: [
+                              Text(
+                                c.$1,
+                                style: AppTypography.metricSub,
+                              ),
+                              AppSpacing.gapH2,
+                              Text(
+                                c.$2,
                                 textAlign: TextAlign.center,
-                                style: kMetricLabelStyle),
-                          ],
-                        ),
-                      ))
-                  .toList(),
-            ),
-          ],
+                                style: AppTypography.metricLabel,
+                              ),
+                            ],
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -182,69 +209,84 @@ class RunDetailScreen extends ConsumerWidget {
               h.bpm,
             ))
         .toList();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 18, 18, 8),
-        child: SizedBox(
-          height: 180,
-          child: LineChart(
-            LineChartData(
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                getDrawingHorizontalLine: (v) => FlLine(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  strokeWidth: 1,
-                ),
-              ),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(),
-                rightTitles: const AxisTitles(),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 34,
-                    getTitlesWidget: (v, _) => Text('${v.toInt()}',
-                        style: const TextStyle(
-                            color: AppColors.textSecondary, fontSize: 10)),
+
+    return Semantics(
+      label: '심박수 시계열 차트: 평균 ${run.avgHr?.round() ?? '-'}bpm, 최고 ${run.maxHr?.round() ?? '-'}bpm',
+      child: Card(
+        child: Padding(
+          padding: AppSpacing.chartPadding,
+          child: SizedBox(
+            height: 180,
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (v) => FlLine(
+                    color: AppColors.borderFaint,
+                    strokeWidth: 1,
                   ),
                 ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    interval: 5,
-                    getTitlesWidget: (v, _) => Text('${v.toInt()}분',
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(),
+                  rightTitles: const AxisTitles(),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 34,
+                      getTitlesWidget: (v, _) => Text(
+                        '${v.toInt()}',
                         style: const TextStyle(
-                            color: AppColors.textSecondary, fontSize: 10)),
+                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 5,
+                      getTitlesWidget: (v, _) => Text(
+                        '${v.toInt()}분',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              borderData: FlBorderData(show: false),
-              lineTouchData: LineTouchData(
-                touchTooltipData: LineTouchTooltipData(
-                  getTooltipItems: (spots) => spots
-                      .map((s) => LineTooltipItem(
-                            '${s.y.round()} bpm',
-                            const TextStyle(
+                borderData: FlBorderData(show: false),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipItems: (spots) => spots
+                        .map((s) => LineTooltipItem(
+                              '${s.y.round()} bpm',
+                              const TextStyle(
                                 color: AppColors.danger,
-                                fontWeight: FontWeight.w700),
-                          ))
-                      .toList(),
-                ),
-              ),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: spots,
-                  isCurved: true,
-                  color: AppColors.danger,
-                  barWidth: 2.5,
-                  dotData: const FlDotData(show: false),
-                  belowBarData: BarAreaData(
-                    show: true,
-                    color: AppColors.danger.withValues(alpha: 0.12),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ))
+                        .toList(),
                   ),
                 ),
-              ],
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: spots,
+                    isCurved: true,
+                    color: AppColors.danger,
+                    barWidth: 2.5,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: AppColors.danger.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -256,38 +298,47 @@ class RunDetailScreen extends ConsumerWidget {
     final zones = hrZoneDistribution(run.hrSeries);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPadding,
         child: Column(
           children: List.generate(5, (i) {
             final pct = zones[i];
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 30,
-                    child: Text('Z${i + 1}',
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.s4),
+              child: Semantics(
+                label: '심박존 Z${i + 1}: ${(pct * 100).round()}%',
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 30,
+                      child: Text(
+                        'Z${i + 1}',
                         style: TextStyle(
-                            color: AppColors.zoneColors[i],
-                            fontWeight: FontWeight.w800)),
-                  ),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: pct,
-                        minHeight: 10,
-                        backgroundColor: Colors.white.withValues(alpha: 0.05),
-                        color: AppColors.zoneColors[i],
+                          color: AppColors.zoneColors[i],
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ),
-                  SizedBox(
-                    width: 48,
-                    child: Text('${(pct * 100).round()}%',
-                        textAlign: TextAlign.end, style: kMetricLabelStyle),
-                  ),
-                ],
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: AppRadius.br4,
+                        child: LinearProgressIndicator(
+                          value: pct,
+                          minHeight: 10,
+                          backgroundColor: Colors.white.withValues(alpha: 0.05),
+                          color: AppColors.zoneColors[i],
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 48,
+                      child: Text(
+                        '${(pct * 100).round()}%',
+                        textAlign: TextAlign.end,
+                        style: AppTypography.metricLabel,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           }),
@@ -312,25 +363,32 @@ class RunDetailScreen extends ConsumerWidget {
     var setNo = 0;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPadding,
         child: Column(
           children: [
             Row(
               children: const [
-                SizedBox(width: 30, child: Text('세트', style: kMetricLabelStyle)),
-                SizedBox(width: 64, child: Text('종류', style: kMetricLabelStyle)),
+                SizedBox(
+                    width: 30,
+                    child: Text('세트', style: AppTypography.metricLabel)),
+                SizedBox(
+                    width: 64,
+                    child: Text('종류', style: AppTypography.metricLabel)),
                 Expanded(
                     child: Text('시간',
-                        textAlign: TextAlign.end, style: kMetricLabelStyle)),
+                        textAlign: TextAlign.end,
+                        style: AppTypography.metricLabel)),
                 Expanded(
                     child: Text('거리(km)',
-                        textAlign: TextAlign.end, style: kMetricLabelStyle)),
+                        textAlign: TextAlign.end,
+                        style: AppTypography.metricLabel)),
                 Expanded(
                     child: Text('페이스(/km)',
-                        textAlign: TextAlign.end, style: kMetricLabelStyle)),
+                        textAlign: TextAlign.end,
+                        style: AppTypography.metricLabel)),
               ],
             ),
-            const Divider(height: 16, color: Colors.white12),
+            const Divider(height: AppSpacing.s16, color: AppColors.borderSubtle),
             ...run.segments.map((seg) {
               final (label, color) =
                   _segmentLabels[seg.type] ?? _segmentLabels['unknown']!;
@@ -353,27 +411,38 @@ class RunDetailScreen extends ConsumerWidget {
                             style: rowStyle)),
                     SizedBox(
                       width: 64,
-                      child: Text(label,
-                          style: TextStyle(
-                              color: color,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14)),
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: color,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
                     Expanded(
-                        child: Text(fmtDuration(seg.durationSec),
-                            textAlign: TextAlign.end, style: rowStyle)),
+                      child: Text(
+                        fmtDuration(seg.durationSec),
+                        textAlign: TextAlign.end,
+                        style: rowStyle,
+                      ),
+                    ),
                     Expanded(
-                        child: Text(
-                            (seg.distanceM / 1000).toStringAsFixed(2),
-                            textAlign: TextAlign.end,
-                            style: rowStyle)),
+                      child: Text(
+                        (seg.distanceM / 1000).toStringAsFixed(2),
+                        textAlign: TextAlign.end,
+                        style: rowStyle,
+                      ),
+                    ),
                     Expanded(
-                        child: Text(
-                            seg.paceSecPerKm > 0
-                                ? fmtPace(seg.paceSecPerKm)
-                                : '—',
-                            textAlign: TextAlign.end,
-                            style: rowStyle)),
+                      child: Text(
+                        seg.paceSecPerKm > 0
+                            ? fmtPace(seg.paceSecPerKm)
+                            : '—',
+                        textAlign: TextAlign.end,
+                        style: rowStyle,
+                      ),
+                    ),
                   ],
                 ),
               );
@@ -414,7 +483,7 @@ class RunDetailScreen extends ConsumerWidget {
         driftColor = AppColors.neon;
       } else if (drift <= 10.0) {
         driftLabel = '정상 피로도 누적';
-        driftColor = const Color(0xFFFFB23D);
+        driftColor = AppColors.warning;
       } else {
         driftLabel = '심폐 과부하 / 탈진 주의';
         driftColor = AppColors.danger;
@@ -434,7 +503,7 @@ class RunDetailScreen extends ConsumerWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: AppSpacing.cardPaddingLarge,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -442,25 +511,23 @@ class RunDetailScreen extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.all(14),
+                    padding: AppSpacing.all14,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.03),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.cardSubtle,
+                      borderRadius: AppRadius.br12,
+                      border: Border.all(color: AppColors.borderFaint),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('평균 보폭 (Stride)', style: kMetricLabelStyle),
-                        const SizedBox(height: 6),
+                        const Text('평균 보폭 (Stride)',
+                            style: AppTypography.metricLabel),
+                        AppSpacing.gapH6,
                         Text(
                           stride != null ? '${stride.round()} cm' : '—',
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                          ),
+                          style: AppTypography.metric,
                         ),
-                        const SizedBox(height: 4),
+                        AppSpacing.gapH4,
                         Text(
                           strideLabel,
                           style: TextStyle(
@@ -475,30 +542,28 @@ class RunDetailScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                AppSpacing.gapW12,
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.all(14),
+                    padding: AppSpacing.all14,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.03),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.cardSubtle,
+                      borderRadius: AppRadius.br12,
+                      border: Border.all(color: AppColors.borderFaint),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('심박 드리프트 (피로도)', style: kMetricLabelStyle),
-                        const SizedBox(height: 6),
+                        const Text('심박 드리프트 (피로도)',
+                            style: AppTypography.metricLabel),
+                        AppSpacing.gapH6,
                         Text(
                           drift != null
                               ? '${drift >= 0 ? '+' : ''}${drift.toStringAsFixed(1)}%'
                               : '—',
-                          style: TextStyle(
-                            color: driftColor,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
-                          ),
+                          style: AppTypography.metric.copyWith(color: driftColor),
                         ),
-                        const SizedBox(height: 4),
+                        AppSpacing.gapH4,
                         Text(
                           driftLabel,
                           style: TextStyle(
@@ -514,11 +579,11 @@ class RunDetailScreen extends ConsumerWidget {
               ],
             ),
             if (ratio != null) ...[
-              const SizedBox(height: 16),
+              AppSpacing.gapH16,
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('훈련 성격 분석', style: kMetricLabelStyle),
+                  const Text('훈련 성격 분석', style: AppTypography.metricLabel),
                   Text(
                     '유산소 ${ratio.aerobicPct.round()}%  •  무산소 ${ratio.anaerobicPct.round()}%',
                     style: const TextStyle(
@@ -529,47 +594,54 @@ class RunDetailScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              AppSpacing.gapH8,
               ClipRRect(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: AppRadius.br6,
                 child: SizedBox(
                   height: 12,
                   child: Row(
                     children: [
                       Expanded(
                         flex: (ratio.aerobicPct * 10).round().clamp(1, 1000),
-                        child: Container(color: const Color(0xFF4AD9A5)),
+                        child: Container(color: AppColors.cardioGreen),
                       ),
                       if (ratio.anaerobicPct > 0)
                         Expanded(
                           flex:
                               (ratio.anaerobicPct * 10).round().clamp(1, 1000),
-                          child: Container(color: const Color(0xFFFFB23D)),
+                          child: Container(color: AppColors.warning),
                         ),
                     ],
                   ),
                 ),
               ),
             ],
-            const SizedBox(height: 16),
+            AppSpacing.gapH16,
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s14,
+                vertical: AppSpacing.s12,
+              ),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.03),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.cardSubtle,
+                borderRadius: AppRadius.br12,
+                border: Border.all(color: AppColors.borderFaint),
               ),
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: AppSpacing.all8,
                     decoration: BoxDecoration(
                       color: AppColors.neon.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child:
-                        const Icon(Icons.bolt, color: AppColors.neon, size: 20),
+                    child: const Icon(
+                      Icons.bolt,
+                      color: AppColors.neon,
+                      size: AppIconSizes.standard,
+                    ),
                   ),
-                  const SizedBox(width: 12),
+                  AppSpacing.gapW12,
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -584,7 +656,7 @@ class RunDetailScreen extends ConsumerWidget {
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            AppSpacing.gapW8,
                             Text(
                               '($loadLabel)',
                               style: const TextStyle(
@@ -594,7 +666,7 @@ class RunDetailScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 2),
+                        AppSpacing.gapH2,
                         Text(
                           '권장 회복 휴식: 약 $recovery시간',
                           style: const TextStyle(
@@ -617,17 +689,19 @@ class RunDetailScreen extends ConsumerWidget {
 
   Widget _laps(RunSession run) {
     const headerStyle = TextStyle(
-        color: AppColors.textSecondary,
-        fontSize: 12,
-        fontWeight: FontWeight.w700);
+      color: AppColors.textSecondary,
+      fontSize: 12,
+      fontWeight: FontWeight.w700,
+    );
     const rowStyle = TextStyle(
-        color: AppColors.textPrimary,
-        fontSize: 13,
-        fontWeight: FontWeight.w600);
+      color: AppColors.textPrimary,
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+    );
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPadding,
         child: Column(
           children: [
             const Row(
@@ -647,7 +721,7 @@ class RunDetailScreen extends ConsumerWidget {
                         textAlign: TextAlign.end, style: headerStyle)),
               ],
             ),
-            const Divider(color: Colors.white12, height: 16),
+            const Divider(color: AppColors.borderSubtle, height: AppSpacing.s16),
             ...run.laps.map((lap) {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 5),
@@ -658,32 +732,43 @@ class RunDetailScreen extends ConsumerWidget {
                       child: Text(
                         '#${lap.lapNumber}',
                         style: const TextStyle(
-                            color: AppColors.neon,
-                            fontWeight: FontWeight.w800),
+                          color: AppColors.neon,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     Expanded(
-                        child: Text(fmtDuration(lap.durationSec),
-                            textAlign: TextAlign.end, style: rowStyle)),
+                      child: Text(
+                        fmtDuration(lap.durationSec),
+                        textAlign: TextAlign.end,
+                        style: rowStyle,
+                      ),
+                    ),
                     Expanded(
-                        child: Text(
-                            '${lap.distanceKm.toStringAsFixed(2)} km',
-                            textAlign: TextAlign.end,
-                            style: rowStyle)),
+                      child: Text(
+                        '${lap.distanceKm.toStringAsFixed(2)} km',
+                        textAlign: TextAlign.end,
+                        style: rowStyle,
+                      ),
+                    ),
                     Expanded(
-                        child: Text(
-                            lap.paceSecPerKm > 0
-                                ? fmtPace(lap.paceSecPerKm)
-                                : '—',
-                            textAlign: TextAlign.end,
-                            style: rowStyle)),
+                      child: Text(
+                        lap.paceSecPerKm > 0
+                            ? fmtPace(lap.paceSecPerKm)
+                            : '—',
+                        textAlign: TextAlign.end,
+                        style: rowStyle,
+                      ),
+                    ),
                     Expanded(
-                        child: Text(
-                            lap.avgHr != null
-                                ? '${lap.avgHr!.round()} bpm'
-                                : '—',
-                            textAlign: TextAlign.end,
-                            style: rowStyle)),
+                      child: Text(
+                        lap.avgHr != null
+                            ? '${lap.avgHr!.round()} bpm'
+                            : '—',
+                        textAlign: TextAlign.end,
+                        style: rowStyle,
+                      ),
+                    ),
                   ],
                 ),
               );
@@ -726,8 +811,10 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
         content: const Text('설정에서 Gemini API 키를 먼저 입력하세요'),
         action: SnackBarAction(
           label: '설정으로',
-          onPressed: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen())),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+          ),
         ),
       ));
       return;
@@ -755,25 +842,33 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: AppSpacing.cardPadding,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.auto_awesome, size: 16, color: AppColors.neon),
-                const SizedBox(width: 6),
-                const Text('AI 러닝 요약',
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800)),
+                const Icon(
+                  Icons.auto_awesome,
+                  size: AppIconSizes.sm,
+                  color: AppColors.neon,
+                ),
+                AppSpacing.gapW6,
+                const Text(
+                  'AI 러닝 요약',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const Spacer(),
                 if (_loading)
                   const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                    width: AppIconSizes.sm,
+                    height: AppIconSizes.sm,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 else
                   TextButton(
                     onPressed: _generate,
@@ -783,25 +878,30 @@ class _AiSummaryCardState extends ConsumerState<_AiSummaryCard> {
             ),
             if (_error != null)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(_error!,
-                    style: const TextStyle(
-                        color: AppColors.danger, fontSize: 12)),
+                padding: const EdgeInsets.only(top: AppSpacing.s8),
+                child: Text(
+                  _error!,
+                  style: const TextStyle(
+                    color: AppColors.danger,
+                    fontSize: 12,
+                  ),
+                ),
               )
             else if (_summary != null)
               Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Text(_summary!,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 13.5,
-                        height: 1.5)),
+                padding: const EdgeInsets.only(top: AppSpacing.s10),
+                child: Text(
+                  _summary!,
+                  style: AppTypography.bodyMedium,
+                ),
               )
             else if (!_loading)
               const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Text('버튼을 눌러 이 러닝에 대한 AI 코멘트를 받아보세요',
-                    style: kMetricLabelStyle),
+                padding: EdgeInsets.only(top: AppSpacing.s6),
+                child: Text(
+                  '버튼을 눌러 이 러닝에 대한 AI 코멘트를 받아보세요',
+                  style: AppTypography.metricLabel,
+                ),
               ),
           ],
         ),

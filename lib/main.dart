@@ -31,7 +31,7 @@ class RunLogApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'RunLog',
-      theme: buildTheme(),
+      theme: buildAppTheme(),
       locale: const Locale('ko'),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
@@ -69,13 +69,30 @@ class _MainShellState extends State<MainShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), label: '홈'),
           NavigationDestination(
-              icon: Icon(Icons.list_alt_outlined), label: '기록'),
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: '홈',
+            tooltip: '홈 탭',
+          ),
           NavigationDestination(
-              icon: Icon(Icons.insights_outlined), label: '분석'),
+            icon: Icon(Icons.list_alt_outlined),
+            selectedIcon: Icon(Icons.list_alt),
+            label: '기록',
+            tooltip: '기록 탭',
+          ),
           NavigationDestination(
-              icon: Icon(Icons.emoji_events_outlined), label: '업적'),
+            icon: Icon(Icons.insights_outlined),
+            selectedIcon: Icon(Icons.insights),
+            label: '분석',
+            tooltip: '분석 탭',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.emoji_events_outlined),
+            selectedIcon: Icon(Icons.emoji_events),
+            label: '업적',
+            tooltip: '업적 탭',
+          ),
         ],
       ),
     );
