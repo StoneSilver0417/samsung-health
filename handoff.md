@@ -2,7 +2,12 @@
 
 ## 현재 상태
 
-- **버전**: v1.8.3+28 — 2단계 디자인 토큰 체계화 및 ThemeExtension 도입 완료 (테스트 112종 확보) (2026-09-05)
+- **버전**: v1.8.3+28 — 3단계 대형 UI 화면 분할 및 모듈화 리팩토링 완료 (테스트 127종 확보) (2026-09-05)
+- **UI 화면 모듈화 구조 (Single Responsibility Principle)**:
+  - `lib/ui/analysis_screen.dart` (182줄): `lib/ui/analysis/widgets/` 아래 7개 서브 위젯 조합 및 상태 라우팅
+    - `goal_recommend_card.dart`, `monthly_summary_card.dart`, `monthly_runs_chart_card.dart`, `weekly_volume_chart_card.dart`, `pace_trend_chart_card.dart`, `vo2max_trend_chart_card.dart`, `pb_records_card.dart`
+  - `lib/ui/run_detail_screen.dart` (116줄): `lib/ui/run_detail/widgets/` 아래 7개 서브 위젯 조합 및 액션 처리
+    - `run_detail_hero_header.dart`, `run_detail_metrics_grid.dart`, `run_detail_ai_summary_card.dart`, `run_detail_running_dynamics_card.dart`, `run_detail_hr_chart_card.dart`, `run_detail_laps_table_card.dart`, `run_detail_delete_dialog.dart`
 - **디자인 시스템**:
   - `DESIGN.md`: 다크 네온 디자인 원칙, 토큰 사양 (Color, Spacing 4/8/12/16/20/24/32, Radius, Typography, Icon Sizes) 명문화
   - `lib/core/theme/`: `AppDesignTokens` (`ThemeExtension`), `AppTheme`, `AppColors`, `AppSpacing`, `AppRadius`, `AppTypography`, `AppIconSizes`
@@ -15,12 +20,13 @@
   - **훈련 부하(TRIMP) & 권장 회복 시간**: 심박존 가중치 기반 트레이닝 로드 및 회복 시간(h) 산출
   - **워치 랩 (Laps)**: 워치 Auto-Lap / 수동 랩 실제 기록 시에만 노출
 - **업적 배지 체계**: 총 33종
-- **빌드/테스트 상태**: `flutter test` 112/112 PASS, `flutter analyze` 0 issues (No issues found)
+- **빌드/테스트 상태**: `flutter test` 127/127 PASS, `flutter analyze` 0 issues (No issues found)
 
 ## 최근 작업 이력
 
 | 버전 | 내용 |
 |---|---|
+| `v1.8.3` (UI 모듈화) | 3단계 대형 UI 화면 분할 및 모듈화: analysis_screen.dart (182줄) 및 run_detail_screen.dart (116줄) 300줄 미만 경량화, sub-widgets 디렉터리 분리, modular_widgets_test 추가 (총 127개 테스트 통과) |
 | `v1.8.3` (디자인 토큰) | 2단계 디자인 토큰 체계화: DESIGN.md 규칙 수립, ThemeExtension 기반 AppDesignTokens 및 AppTheme 도입, 전 UI 컴포넌트 토큰화, 표면 깊이 다변화, a11y Semantics 및 4.5:1+ 대비비 강화, design_tokens_test 추가 (총 112개 테스트 통과) |
 | `v1.8.3` (안전망) | 1단계 안전망 구축: RunsNotifier 단위/회귀 테스트, GeminiService HTTP 재시도/지수백오프 테스트, UI AsyncValue 상태 렌더링 회귀 테스트 추가 (총 97개 테스트 통과) |
 | `v1.8.3` | Health Connect StepsRecord 네이티브 직독 및 3중 폴백 연동으로 걸음 누락 해결 |

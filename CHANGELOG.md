@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-09-05 (3단계 대형 UI 화면 분할 및 모듈화 리팩토링)
+
+### 대형 UI 파일 모듈화 및 단일 책임 원칙(SRP) 적용
+- **`lib/ui/analysis_screen.dart` 경량화 (958줄 → 182줄, 300줄 미만 달성)**:
+  - `lib/ui/analysis/widgets/` 디렉터리에 7종 서브 위젯 분리:
+    - `goal_recommend_card.dart`: 목표 추천 AI 코칭 (Gemini 연동 및 캐시)
+    - `monthly_summary_card.dart`: 이번 달 요약 (`MonthlySummaryCard`) 및 지난달 비교 (`MonthCompareCard`)
+    - `monthly_runs_chart_card.dart`: 최근 6개월 월별 러닝 거리 막대 차트
+    - `weekly_volume_chart_card.dart`: 최근 8주간 볼륨 막대 차트
+    - `pace_trend_chart_card.dart`: 회차별 평균 페이스 추이 선 차트 & `safePaceRange`
+    - `vo2max_trend_chart_card.dart`: 최대 산소 섭취량 (VO₂max) 추이 차트
+    - `pb_records_card.dart`: 개인 최고 기록 (PB) 카드
+- **`lib/ui/run_detail_screen.dart` 경량화 (911줄 → 116줄, 300줄 미만 달성)**:
+  - `lib/ui/run_detail/widgets/` 디렉터리에 7종 서브 위젯 분리:
+    - `run_detail_hero_header.dart`: 상단 거리/시간/페이스 핵심 요약 카드
+    - `run_detail_metrics_grid.dart`: 세부 지표(칼로리/심박수/케이던스/보폭/고도 등) 그리드
+    - `run_detail_ai_summary_card.dart`: Gemini AI 세션 요약 코칭 카드
+    - `run_detail_running_dynamics_card.dart`: 보폭, 심박 드리프트, 유산소 비율, 훈련부하/회복시간 분석 카드
+    - `run_detail_hr_chart_card.dart`: 심박수 시계열 라인 차트 (`RunDetailHrChartCard`) & 심박존 분포 (`RunDetailHrZonesCard`)
+    - `run_detail_laps_table_card.dart`: 워치 실제 랩 테이블 (`RunDetailLapsTableCard`) & 인터벌 구간 테이블 (`RunDetailSegmentsCard`)
+    - `run_detail_delete_dialog.dart`: 기록 삭제 확인 다이얼로그
+- **단위 및 위젯 테스트 강화 (`test/modular_widgets_test.dart`)**:
+  - 각 모듈화된 서브 위젯 격리 렌더링, 엣지 케이스(기록 0/1개), Semantics 접근성 테스트 15종 추가
+  - 전체 테스트 127종 100% 통과 (`flutter test` 127/127 PASS, `flutter analyze` 0 issues)
+
 ## 2026-09-05 (2단계 디자인 토큰 체계화 & ThemeExtension 도입)
 
 ### 디자인 시스템 & 토큰 체계화
