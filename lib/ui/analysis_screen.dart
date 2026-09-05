@@ -273,29 +273,27 @@ class AnalysisScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 10),
-            SizedBox(
-              width: 86,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (improved != null)
-                    Icon(
-                      improved
-                          ? Icons.arrow_upward
-                          : Icons.arrow_downward,
-                      size: 13,
-                      color: deltaColor,
-                    ),
-                  Text(
-                    deltaText,
-                    style: TextStyle(
-                      color: deltaColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (improved != null)
+                  Icon(
+                    improved
+                        ? Icons.arrow_upward
+                        : Icons.arrow_downward,
+                    size: 13,
+                    color: deltaColor,
                   ),
-                ],
-              ),
+                Text(
+                  deltaText,
+                  style: TextStyle(
+                    color: deltaColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

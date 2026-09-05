@@ -28,4 +28,26 @@ void main() {
     expect(await second, 2);
     expect(events, ['first-start', 'first-end', 'second']);
   });
+
+  test('continues in FIFO order after a mutation fails', () async {
+    final queue = MutationQueue();
+    final events = <String>[];
+
+    // Given
+    final failed = queue.run<void>(() async {
+      events.add('failed');
+      throw StateError('broken mutation');
+    });
+
+    // When
+    final recovered = queue.run(() async {
+      events.add('recovered');
+      return 7;
+    });
+
+    // Then
+    await expectLater(failed, throwsStateError);
+    expect(await recovered, 7);
+    expect(events, ['failed', 'recovered']);
+  });
 }

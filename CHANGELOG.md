@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-05 (1단계 안전망 구축 완료 — Riverpod Notifier, GeminiService 및 UI AsyncValue 회귀 테스트 체계 구축)
+
+### 테스트 및 품질 안정화
+- **`RunsNotifier` 상태 전이 & MutationQueue 회귀 테스트 (`test/runs_notifier_test.dart`)**:
+  - 초기화(`build`), Health Connect 동기화(`sync`), 과거 기록 조회(`fetchCandidates`), 과거 기록 가져오기/제외(`importRuns`), 기록 삭제(`deleteRun`), 데모 데이터 주입(`seedDemoData`), 전체 삭제(`clearAll`) 전 시나리오 검증
+  - 권한 거부 및 네트워크/동기화 예외 발생 시 안전한 `SyncResult` 에러 반환 및 상태 불변성 검증
+  - `MutationQueue`를 통한 동시성 비동기 호출 순차 처리(FIFO) 및 장애 격리(이전 실패가 후속 뮤테이션을 차단하지 않음) 보장 검증
+  - `statsProvider`, `vo2SeriesProvider`, `earnedBadgesProvider` 파생 프로바이더 반응성 검증
+- **`GeminiService` HTTP 재시도 및 예외 핸들링 테스트 강화 (`test/gemini_service_test.dart`)**:
+  - `MockClient` 및 지연 함수 주입 기반 테스트 환경 구축
+  - API 미설정(`GeminiNotConfiguredException`), 유효한 요청 헤더/바디 포맷, 모델 내부 사고 과정(`thought: true`) 필터링 검증
+  - 400 즉시 실패, 429/500/503/504 지수 백오프 재시도(1초, 2초) 및 3회 연속 실패 시 사용자 친화적 메시지 전파 검증
+  - 일시적 503/네트워크 단절 후 2회차 재시도 성공 시 정상 복구 흐름 검증
+  - `TimeoutException`(60초), `SocketException`, `http.ClientException` 예외 분기별 에러 핸들링 검증
+- **UI 비동기 상태(`AsyncValue`) 및 위젯 렌더링 회귀 테스트 (`test/ui_async_value_test.dart`)**:
+  - `RunsScreen`, `HomeScreen`: `AsyncLoading`(로딩 인디케이터), `AsyncError`(에러 메시지), `AsyncData([])`(빈 상태 안내), `AsyncData([runs])`(기록 카드 및 통계) 렌더링 검증
+  - `RunDetailScreen`: 존재하지 않는 ID 안내, 세부 분석 카드, 수동 기록에만 편집 버튼 노출 분기 검증
+  - `AnalysisScreen`: 빈 데이터 캘린더 안내 및 목표 추천/통계 차트 정상 렌더링 검증
+- **버그 수정**:
+  - `lib/ui/analysis_screen.dart`: 지난달 대비 증감치 행에서 고정 너비(86px)로 인해 긴 텍스트에서 발생하던 `RenderFlex` 우측 13px 오버플로우 버그 수정
+
 ## 2026-09-03 (v1.8.3 — Health Connect 워치 걸음 수 네이티브 직독 및 다중 폴백 연동)
 
 ### 버그 수정

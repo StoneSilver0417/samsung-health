@@ -2,7 +2,7 @@
 
 ## 현재 상태
 
-- **버전**: v1.8.3+28 — Health Connect 워치 걸음 수 네이티브 직독 및 다중 폴백 적용 (2026-09-03)
+- **버전**: v1.8.3+28 — 1단계 안전망 구축 완료 (Riverpod Notifier, GeminiService, UI AsyncValue 회귀 테스트 97종 확보) (2026-09-05)
 - **러닝 분석 지표**:
   - **평균 보폭 (Stride)**: `distanceM / steps * 100` (cm 단위, 45cm~200cm 정상 생체역학 범위 검증)
   - **심박수 드리프트 (Cardiac Drift)**: 전반 50% vs 후반 50% 심박 비교
@@ -10,12 +10,13 @@
   - **훈련 부하(TRIMP) & 권장 회복 시간**: 심박존 가중치 기반 트레이닝 로드 및 회복 시간(h) 산출
   - **워치 랩 (Laps)**: 워치 Auto-Lap / 수동 랩 실제 기록 시에만 노출
 - **업적 배지 체계**: 총 33종
-- **빌드/테스트 상태**: `flutter test` 47/47 PASS, `flutter analyze` 0 issues
+- **빌드/테스트 상태**: `flutter test` 97/97 PASS, `flutter analyze` 0 issues (No issues found)
 
 ## 최근 작업 이력
 
 | 버전 | 내용 |
 |---|---|
+| `v1.8.3` (안전망) | 1단계 안전망 구축: RunsNotifier 단위/회귀 테스트, GeminiService HTTP 재시도/지수백오프 테스트, UI AsyncValue 상태 렌더링 회귀 테스트 추가 (총 97개 테스트 통과) |
 | `v1.8.3` | Health Connect StepsRecord 네이티브 직독 및 3중 폴백 연동으로 걸음 누락 해결 |
 | `v1.8.2` | Health Connect STEPS/칼로리 sourceId 매칭 수정, 보폭/케이던스 이상치 필터링 |
 | `v1.8.1` | 가짜 1km 스플릿 제거, 러닝 역학 & 심폐 효율 카드(보폭, 심박 드리프트, 유산소 비율, 훈련부하/회복시간) 신설, 실제 워치 랩 연동 |

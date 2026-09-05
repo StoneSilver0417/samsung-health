@@ -22,6 +22,15 @@ class GeminiService {
   static const _maxAttempts = 3;
   static const _retryableStatusCodes = {429, 500, 502, 503, 504};
 
+  final http.Client? _client;
+  final Future<void> Function(Duration) _delay;
+
+  GeminiService({
+    http.Client? client,
+    Future<void> Function(Duration)? delay,
+  })  : _client = client,
+        _delay = delay ?? Future<void>.delayed;
+
   /// [run]을 [recentRuns](같은 러닝 제외, 최근 순 최대 5개)와 비교해 코멘트를 생성한다.
   Future<String> summarizeRun(
     String apiKey,
@@ -75,16 +84,14 @@ class GeminiService {
 
     for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
       try {
-        final res = await http
-            .post(
-              uri,
-              headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey,
-              },
-              body: body,
-            )
-            .timeout(const Duration(seconds: 60));
+        final headers = {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        };
+        final request = _client == null
+            ? http.post(uri, headers: headers, body: body)
+            : _client.post(uri, headers: headers, body: body);
+        final res = await request.timeout(const Duration(seconds: 60));
 
         if (res.statusCode == 200) {
           return _parseResponse(res);
@@ -112,7 +119,7 @@ class GeminiService {
       }
 
       // 503/429 또는 일시적 네트워크 오류 시 1초, 2초 간격으로 재시도한다.
-      await Future<void>.delayed(Duration(seconds: attempt));
+      await _delay(Duration(seconds: attempt));
     }
     throw StateError('Gemini 요청 재시도 흐름이 비정상적으로 종료되었습니다');
   }

@@ -22,3 +22,4 @@ google-services.json
 .DS_Store
 Thumbs.db
 *.log
+.omo/
