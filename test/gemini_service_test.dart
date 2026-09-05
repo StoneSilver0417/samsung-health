@@ -534,9 +534,9 @@ void main() {
       final run = _run(km: 5.0, durationSec: 1800, avgHr: 150, maxHr: 168);
       final prompt = GeminiService.buildPrompt(run, []);
 
-      expect(prompt, contains('📌 [핵심 요약]'));
-      expect(prompt, contains('📊 [페이스 & 심박 분석]'));
-      expect(prompt, contains('💡 [맞춤 코칭 팁]'));
+      expect(prompt, contains('[핵심 요약]'));
+      expect(prompt, contains('[페이스 & 심박 분석]'));
+      expect(prompt, contains('[맞춤 코칭 팁]'));
       expect(prompt, contains('5.00km'));
       expect(prompt, contains('150bpm'));
       expect(prompt, contains('168bpm'));

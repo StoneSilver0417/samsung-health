@@ -7,6 +7,7 @@ import '../../../models/run_session.dart';
 import '../../../providers.dart';
 import '../../../services/gemini_service.dart';
 import '../../settings_screen.dart';
+import '../../widgets/ai_report_presentation.dart';
 
 class GoalRecommendCard extends ConsumerStatefulWidget {
   final StatsSummary stats;
@@ -49,11 +50,9 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
           action: SnackBarAction(
             label: '설정',
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const SettingsScreen(),
-                ),
-              );
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
             },
           ),
         ),
@@ -87,75 +86,6 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
     }
   }
 
-  void _showFullGoalModal(BuildContext context, String text) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.cardElevated,
-      shape: const RoundedRectangleBorder(
-        borderRadius: AppRadius.bottomSheetTop,
-      ),
-      builder: (ctx) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.65,
-          maxChildSize: 0.85,
-          minChildSize: 0.4,
-          builder: (_, controller) {
-            return Container(
-              padding: AppSpacing.bottomSheetPadding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: AppSpacing.s16),
-                      decoration: const BoxDecoration(
-                        color: AppColors.textTertiary,
-                        borderRadius: AppRadius.brFull,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      const Icon(Icons.flag, color: AppColors.neon, size: 22),
-                      AppSpacing.gapW8,
-                      const Text(
-                        'AI 맞춤 다음 목표 가이드',
-                        style: AppTypography.titleMedium,
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close,
-                            color: AppColors.textSecondary),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const Divider(color: AppColors.borderSubtle, height: 24),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: controller,
-                      child: Text(
-                        text,
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textPrimary,
-                          height: 1.6,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final apiKey = ref.watch(repoProvider).getGeminiApiKey();
@@ -181,11 +111,9 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
                   size: AppIconSizes.standard,
                 ),
                 AppSpacing.gapW8,
-                const Text(
-                  '다음 목표 AI 제안',
-                  style: AppTypography.titleSmall,
+                const Expanded(
+                  child: Text('다음 목표 AI 제안', style: AppTypography.titleSmall),
                 ),
-                const Spacer(),
                 if (hasKey && !_loading)
                   IconButton(
                     icon: const Icon(Icons.refresh, size: AppIconSizes.sm),
@@ -196,47 +124,30 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
               ],
             ),
             AppSpacing.gapH12,
-            if (!hasKey) ...[
-              const Text(
-                'Gemini API 키를 설정하면 최근 기록을 바탕으로 다음 목표를 추천받을 수 있습니다.',
-                style: AppTypography.bodySmall,
-              ),
-              AppSpacing.gapH8,
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SettingsScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.key, size: AppIconSizes.sm),
-                label: const Text('API 키 설정하기'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.neon,
-                ),
-              ),
-            ] else if (_loading) ...[
+            if (_loading) ...[
               const Row(
                 children: [
                   SizedBox(
-                    width: 16,
-                    height: 16,
+                    width: AppIconSizes.sm,
+                    height: AppIconSizes.sm,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: AppColors.neon,
                     ),
                   ),
                   AppSpacing.gapW12,
-                  Text(
-                    'AI가 다음 목표를 계산하는 중입니다...',
-                    style: AppTypography.bodySmall,
+                  Expanded(
+                    child: Text(
+                      'AI가 다음 목표를 계산하는 중입니다...',
+                      style: AppTypography.bodySmall,
+                    ),
                   ),
                 ],
               ),
             ] else if (_recommendation != null) ...[
               Text(
-                _recommendation!,
+                extractAiReportSection(_recommendation!, '다음 1~2주 목표'),
+                key: const Key('ai-goal-summary-text'),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.bodyMedium,
@@ -245,28 +156,38 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () => _showFullGoalModal(
+                  key: const Key('ai-goal-full-report-button'),
+                  onPressed: () => showAiReportSheet(
                     context,
-                    _recommendation!,
+                    title: 'AI 맞춤 다음 목표 가이드',
+                    icon: Icons.flag,
+                    report: _recommendation!,
                   ),
-                  icon: const Icon(Icons.open_in_new, size: AppIconSizes.sm),
-                  label: const Text('상세 목표 팝업으로 보기'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.neon,
-                    side: const BorderSide(
-                      color: AppColors.borderFocused,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppRadius.br8,
-                    ),
+                  icon: const Icon(
+                    Icons.article_outlined,
+                    size: AppIconSizes.sm,
                   ),
+                  label: const Text('상세 목표 보기'),
                 ),
               ),
-            ] else ...[
+            ] else if (!hasKey) ...[
               const Text(
-                '아직 추천된 목표가 없습니다.',
+                'Gemini API 키를 설정하면 최근 기록을 바탕으로 다음 목표를 추천받을 수 있습니다.',
                 style: AppTypography.bodySmall,
               ),
+              AppSpacing.gapH8,
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  );
+                },
+                icon: const Icon(Icons.key, size: AppIconSizes.sm),
+                label: const Text('API 키 설정하기'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.neon),
+              ),
+            ] else ...[
+              const Text('아직 추천된 목표가 없습니다.', style: AppTypography.bodySmall),
               if (_error != null) ...[
                 AppSpacing.gapH8,
                 Text(

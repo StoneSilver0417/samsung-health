@@ -8,6 +8,7 @@ import 'logic/achievement_engine.dart';
 import 'logic/stats.dart';
 import 'models/achievement.dart';
 import 'models/run_session.dart';
+import 'services/gemini_service.dart';
 import 'services/health_service.dart';
 
 /// main()에서 열린 Hive 저장소로 override됨
@@ -16,17 +17,23 @@ final repoProvider = Provider<RunRepository>(
 );
 
 final healthServiceProvider = Provider<HealthService>((ref) => HealthService());
+final geminiServiceProvider = Provider<GeminiService>((ref) => GeminiService());
+final nowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
 class SyncResult {
   final int addedCount;
   final List<BadgeDef> newBadges;
   final String? error;
   final List<RunSession> addedRuns;
+  final int aiAnalyzedCount;
+  final String? aiAnalysisError;
   const SyncResult({
     this.addedCount = 0,
     this.newBadges = const [],
     this.error,
     this.addedRuns = const [],
+    this.aiAnalyzedCount = 0,
+    this.aiAnalysisError,
   });
 }
 
@@ -42,45 +49,99 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
   /// (예: 2026-07 삼성헬스 업데이트 버그로 운동기록이 HC에 안 써지던 구간)
   /// lastSyncedAt를 커서로 삼아 그 구간을 건너뛰지 않고 다음 정기 동기화에서
   /// 자동으로 다시 잡아내도록 하기 위함.
-  Future<SyncResult> sync() => _mutations.run(() async {
-      final repo = ref.read(repoProvider);
-      final health = ref.read(healthServiceProvider);
-      try {
-        await health.configure();
-        final granted = await health.requestPermissions();
-        if (!granted) {
-          return const SyncResult(error: 'Health Connect 권한이 거부되었습니다');
+  Future<SyncResult> sync({bool autoAnalyzeNewTodayRuns = false}) =>
+      _mutations.run(() async {
+        final repo = ref.read(repoProvider);
+        final health = ref.read(healthServiceProvider);
+        try {
+          await health.configure();
+          final granted = await health.requestPermissions();
+          if (!granted) {
+            return const SyncResult(error: 'Health Connect 권한이 거부되었습니다');
+          }
+
+          // 고도·VO2max 추가 권한 (거부해도 기본 동기화는 진행)
+          await health.requestExtraPermissions();
+
+          final fetched = await health.fetchRuns();
+          // 가져오기에서 제외했거나 삭제한 기록은 다시 저장하지 않는다
+          final ignored = repo.getIgnoredIds();
+          fetched.removeWhere((r) => ignored.contains(r.id));
+          final added = await repo.upsertAll(fetched);
+          await repo.setLastSyncedAt(DateTime.now());
+
+          // VO2max 추세 (최근 90일)
+          final vo2 = await health.fetchVo2Series(
+            DateTime.now().subtract(const Duration(days: 90)),
+            DateTime.now(),
+          );
+          if (vo2.isNotEmpty) await repo.saveVo2Series(vo2);
+
+          final all = await repo.getAll();
+          final newBadges = await AchievementEngine(
+            repo,
+          ).evaluate(all.reversed.toList());
+
+          state = AsyncData(all);
+
+          final aiResult = autoAnalyzeNewTodayRuns
+              ? await _analyzeNewTodayRuns(added, all)
+              : (count: 0, error: null as String?);
+          return SyncResult(
+            addedCount: added.length,
+            newBadges: newBadges,
+            addedRuns: added,
+            aiAnalyzedCount: aiResult.count,
+            aiAnalysisError: aiResult.error,
+          );
+        } catch (e) {
+          return SyncResult(error: '동기화 실패: $e');
         }
+      });
 
-        // 고도·VO2max 추가 권한 (거부해도 기본 동기화는 진행)
-        await health.requestExtraPermissions();
+  Future<({int count, String? error})> _analyzeNewTodayRuns(
+    List<RunSession> addedRuns,
+    List<RunSession> allRuns,
+  ) async {
+    final repo = ref.read(repoProvider);
+    final apiKey = repo.getGeminiApiKey()?.trim();
+    if (apiKey == null || apiKey.isEmpty || addedRuns.isEmpty) {
+      return (count: 0, error: null);
+    }
 
-        final fetched = await health.fetchRuns();
-        // 가져오기에서 제외했거나 삭제한 기록은 다시 저장하지 않는다
-        final ignored = repo.getIgnoredIds();
-        fetched.removeWhere((r) => ignored.contains(r.id));
-        final added = await repo.upsertAll(fetched);
-        await repo.setLastSyncedAt(DateTime.now());
-
-        // VO2max 추세 (최근 90일)
-        final vo2 = await health.fetchVo2Series(
-            DateTime.now().subtract(const Duration(days: 90)), DateTime.now());
-        if (vo2.isNotEmpty) await repo.saveVo2Series(vo2);
-
-        final all = await repo.getAll();
-        final newBadges =
-            await AchievementEngine(repo).evaluate(all.reversed.toList());
-
-        state = AsyncData(all);
-        return SyncResult(
-          addedCount: added.length,
-          newBadges: newBadges,
-          addedRuns: added,
-        );
-      } catch (e) {
-        return SyncResult(error: '동기화 실패: $e');
-      }
+    final now = ref.read(nowProvider)();
+    final todayRuns = addedRuns.where((run) {
+      final started = run.startTime.toLocal();
+      final localNow = now.toLocal();
+      return started.year == localNow.year &&
+          started.month == localNow.month &&
+          started.day == localNow.day;
     });
+    final gemini = ref.read(geminiServiceProvider);
+    var count = 0;
+    final errors = <String>[];
+
+    for (final run in todayRuns) {
+      final cached = repo.getAiSummary(run.id)?.trim();
+      if (cached != null && cached.isNotEmpty) continue;
+      try {
+        final recentRuns = allRuns
+            .where((candidate) => candidate.id != run.id)
+            .take(5)
+            .toList(growable: false);
+        final summary = await gemini.summarizeRun(apiKey, run, recentRuns);
+        await repo.saveAiSummary(run.id, summary);
+        count++;
+      } catch (error) {
+        errors.add('${run.id}: $error');
+      }
+    }
+
+    return (
+      count: count,
+      error: errors.isEmpty ? null : 'AI 자동 분석 실패: ${errors.join(', ')}',
+    );
+  }
 
   /// 과거 기록 가져오기: [from]부터의 러닝 후보 조회 (저장하지 않음).
   /// 30일보다 먼 과거는 히스토리 권한을 추가로 요청한다.
@@ -106,51 +167,55 @@ class RunsNotifier extends AsyncNotifier<List<RunSession>> {
 
   /// 선택된 과거 기록 저장 + 업적 재평가.
   /// [excludedIds]는 사용자가 체크 해제한 기록 — 이후 sync()에서도 영구 제외.
-  Future<SyncResult> importRuns(List<RunSession> selected,
-          {Iterable<String> excludedIds = const []}) =>
-      _mutations.run(() async {
-        final repo = ref.read(repoProvider);
-        final added = await repo.upsertAll(selected);
-        if (excludedIds.isNotEmpty) await repo.addIgnoredIds(excludedIds);
-        // 과거에 제외했던 기록을 다시 선택한 경우 제외 목록에서 해제
-        await repo.removeIgnoredIds(selected.map((r) => r.id));
-        // lastSyncedAt을 현재 시각으로 찍어야 다음 sync()가 이 이전 구간을
-        // 다시 전량 가져와 비선택 기록까지 저장하는 것을 막는다.
-        await repo.setLastSyncedAt(DateTime.now());
-        final all = await repo.getAll();
-        final newBadges =
-            await AchievementEngine(repo).evaluate(all.reversed.toList());
-        state = AsyncData(all);
-        return SyncResult(addedCount: added.length, newBadges: newBadges);
-      });
+  Future<SyncResult> importRuns(
+    List<RunSession> selected, {
+    Iterable<String> excludedIds = const [],
+  }) => _mutations.run(() async {
+    final repo = ref.read(repoProvider);
+    final added = await repo.upsertAll(selected);
+    if (excludedIds.isNotEmpty) await repo.addIgnoredIds(excludedIds);
+    // 과거에 제외했던 기록을 다시 선택한 경우 제외 목록에서 해제
+    await repo.removeIgnoredIds(selected.map((r) => r.id));
+    // lastSyncedAt을 현재 시각으로 찍어야 다음 sync()가 이 이전 구간을
+    // 다시 전량 가져와 비선택 기록까지 저장하는 것을 막는다.
+    await repo.setLastSyncedAt(DateTime.now());
+    final all = await repo.getAll();
+    final newBadges = await AchievementEngine(
+      repo,
+    ).evaluate(all.reversed.toList());
+    state = AsyncData(all);
+    return SyncResult(addedCount: added.length, newBadges: newBadges);
+  });
 
   Future<void> deleteRun(String id) => _mutations.run(() async {
-        final repo = ref.read(repoProvider);
-        await repo.delete(id);
-        await repo.addIgnoredIds([id]); // 다음 sync에서 되살아나지 않게
-        state = AsyncData(await repo.getAll());
-      });
+    final repo = ref.read(repoProvider);
+    await repo.delete(id);
+    await repo.addIgnoredIds([id]); // 다음 sync에서 되살아나지 않게
+    state = AsyncData(await repo.getAll());
+  });
 
   /// PC/에뮬레이터 등 Health Connect 없는 환경에서 UI 확인용 (PRD 검증 보조)
   Future<SyncResult> seedDemoData() => _mutations.run(() async {
-        final repo = ref.read(repoProvider);
-        final added = await repo.upsertAll(_generateDemoRuns());
-        final all = await repo.getAll();
-        final newBadges =
-            await AchievementEngine(repo).evaluate(all.reversed.toList());
-        state = AsyncData(all);
-        return SyncResult(addedCount: added.length, newBadges: newBadges);
-      });
+    final repo = ref.read(repoProvider);
+    final added = await repo.upsertAll(_generateDemoRuns());
+    final all = await repo.getAll();
+    final newBadges = await AchievementEngine(
+      repo,
+    ).evaluate(all.reversed.toList());
+    state = AsyncData(all);
+    return SyncResult(addedCount: added.length, newBadges: newBadges);
+  });
 
   Future<void> clearAll() => _mutations.run(() async {
-        final repo = ref.read(repoProvider);
-        await repo.clear();
-        state = const AsyncData([]);
-      });
+    final repo = ref.read(repoProvider);
+    await repo.clear();
+    state = const AsyncData([]);
+  });
 }
 
-final runsProvider =
-    AsyncNotifierProvider<RunsNotifier, List<RunSession>>(RunsNotifier.new);
+final runsProvider = AsyncNotifierProvider<RunsNotifier, List<RunSession>>(
+  RunsNotifier.new,
+);
 
 final statsProvider = Provider<StatsSummary>((ref) {
   final runs = ref.watch(runsProvider).value ?? const <RunSession>[];
@@ -170,7 +235,11 @@ final earnedBadgesProvider = Provider<Map<String, EarnedBadge>>((ref) {
 
 /// 23일 프로그램 스타일 인터벌: 준비 3분 → (운동 6분 + 회복 1분)× → 마무리
 List<RunSegment> _demoSegments(
-    DateTime start, int durationSec, double totalM, Random rng) {
+  DateTime start,
+  int durationSec,
+  double totalM,
+  Random rng,
+) {
   final segments = <RunSegment>[];
   const warmupSec = 180, runSec = 360, restSec = 60;
   var cursor = start;
@@ -187,13 +256,17 @@ List<RunSegment> _demoSegments(
     if (sec <= 0) return;
     final end = cursor.add(Duration(seconds: sec));
     final isRun = type == 'running';
-    segments.add(RunSegment(
-      startTime: cursor,
-      endTime: end,
-      type: type,
-      distanceM: isRun ? runSpeedMps * sec : sec / 60 * 90,
-      avgHr: isRun ? 148 + rng.nextInt(12).toDouble() : 122 + rng.nextInt(8).toDouble(),
-    ));
+    segments.add(
+      RunSegment(
+        startTime: cursor,
+        endTime: end,
+        type: type,
+        distanceM: isRun ? runSpeedMps * sec : sec / 60 * 90,
+        avgHr: isRun
+            ? 148 + rng.nextInt(12).toDouble()
+            : 122 + rng.nextInt(8).toDouble(),
+      ),
+    );
     cursor = end;
     remaining -= sec;
   }
@@ -224,9 +297,7 @@ List<RunSession> _generateDemoRuns() {
         .subtract(Duration(days: daysAgo))
         .add(Duration(hours: 21, minutes: rng.nextInt(40)));
     // 최근일수록 거리·페이스 개선, i==0은 10K 장거리
-    final km = i == 0
-        ? 10.3
-        : 3.0 + (11 - i) * 0.4 + rng.nextDouble() * 0.5;
+    final km = i == 0 ? 10.3 : 3.0 + (11 - i) * 0.4 + rng.nextDouble() * 0.5;
     final paceSec = 415 + i * 5 + rng.nextInt(20); // 7'00"대에서 점진 개선
     final durationSec = (km * paceSec).round();
     final end = start.add(Duration(seconds: durationSec));
@@ -235,37 +306,43 @@ List<RunSession> _generateDemoRuns() {
     final minutes = durationSec ~/ 60;
     for (int m = 0; m <= minutes; m++) {
       final warmup = (m / 6).clamp(0.0, 1.0);
-      hrSeries.add(HrSample(
-        time: start.add(Duration(minutes: m)),
-        bpm: 115 + warmup * (45 - i * 1.5) + rng.nextInt(8),
-      ));
+      hrSeries.add(
+        HrSample(
+          time: start.add(Duration(minutes: m)),
+          bpm: 115 + warmup * (45 - i * 1.5) + rng.nextInt(8),
+        ),
+      );
     }
 
     final splits = <Split>[];
     for (int k = 1; k <= km.floor(); k++) {
-      splits.add(Split(
-        km: k.toDouble(),
-        paceSecPerKm: paceSec + rng.nextInt(24) - 12,
-        avgHr: 140 + rng.nextInt(20).toDouble(),
-      ));
+      splits.add(
+        Split(
+          km: k.toDouble(),
+          paceSecPerKm: paceSec + rng.nextInt(24) - 12,
+          avgHr: 140 + rng.nextInt(20).toDouble(),
+        ),
+      );
     }
 
-    runs.add(RunSession(
-      id: 'demo-$i',
-      startTime: start,
-      endTime: end,
-      distanceM: km * 1000,
-      durationSec: durationSec,
-      avgHr: hrSeries.fold<double>(0, (s, h) => s + h.bpm) / hrSeries.length,
-      maxHr: hrSeries.map((h) => h.bpm).reduce(max),
-      calories: km * 62,
-      steps: (durationSec / 60 * (162 + rng.nextInt(12))).round(),
-      elevationM: 6 + rng.nextInt(20).toDouble(),
-      segments: _demoSegments(start, durationSec, km * 1000, rng),
-      splits: splits,
-      hrSeries: hrSeries,
-      sourceName: 'demo',
-    ));
+    runs.add(
+      RunSession(
+        id: 'demo-$i',
+        startTime: start,
+        endTime: end,
+        distanceM: km * 1000,
+        durationSec: durationSec,
+        avgHr: hrSeries.fold<double>(0, (s, h) => s + h.bpm) / hrSeries.length,
+        maxHr: hrSeries.map((h) => h.bpm).reduce(max),
+        calories: km * 62,
+        steps: (durationSec / 60 * (162 + rng.nextInt(12))).round(),
+        elevationM: 6 + rng.nextInt(20).toDouble(),
+        segments: _demoSegments(start, durationSec, km * 1000, rng),
+        splits: splits,
+        hrSeries: hrSeries,
+        sourceName: 'demo',
+      ),
+    );
   }
   return runs;
 }

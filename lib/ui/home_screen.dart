@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../logic/stats.dart';
-import '../models/run_session.dart';
 import '../providers.dart';
-import '../services/gemini_service.dart';
 import '../services/update_service.dart';
 import 'debug_screen.dart';
 import 'import_screen.dart';
@@ -45,11 +43,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     setState(() => _appVersion = version);
   }
 
-  Future<void> _sync() async {
+  Future<void> _sync({bool autoAnalyzeNewTodayRuns = false}) async {
     if (_syncing) return;
     setState(() => _syncing = true);
     try {
-      final result = await ref.read(runsProvider.notifier).sync();
+      final result = await ref
+          .read(runsProvider.notifier)
+          .sync(autoAnalyzeNewTodayRuns: autoAnalyzeNewTodayRuns);
       if (!mounted) return;
       _showResult(result);
     } catch (e) {
@@ -68,9 +68,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       latest = await _updateService.checkLatest();
     } catch (e) {
       if (!silent && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('업데이트 확인 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('업데이트 확인 실패: $e')));
       }
       return;
     }
@@ -78,8 +78,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final update = latest;
     if (update == null || !UpdateService.isNewer(current, update.version)) {
       if (!silent) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('이미 최신 버전입니다')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('이미 최신 버전입니다')));
       }
       return;
     }
@@ -87,9 +88,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.card,
-        shape: const RoundedRectangleBorder(
-          borderRadius: AppRadius.br20,
-        ),
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.br20),
         title: Text('새 버전 v${update.version}', style: AppTypography.titleLarge),
         content: Text(
           update.notes.trim().isEmpty
@@ -125,9 +124,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.card,
-        shape: const RoundedRectangleBorder(
-          borderRadius: AppRadius.br20,
-        ),
+        shape: const RoundedRectangleBorder(borderRadius: AppRadius.br20),
         title: const Text('다운로드 중', style: AppTypography.titleLarge),
         content: ValueListenableBuilder<double>(
           valueListenable: progress,
@@ -153,7 +150,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     var downloadCompleted = false;
     try {
       final path = await _updateService.downloadApk(
-          info, (p) => progress.value = p);
+        info,
+        (p) => progress.value = p,
+      );
       downloadCompleted = true;
       if (!mounted) return;
       Navigator.pop(context);
@@ -183,57 +182,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       SnackBar(content: Text('새 러닝 ${result.addedCount}개 동기화 완료')),
     );
     for (final badge in result.newBadges) {
-      messenger.showSnackBar(SnackBar(
-        content: Text('새 업적: ${badge.title} — ${badge.description}'),
-        backgroundColor: AppColors.neonDim,
-        duration: const Duration(seconds: 4),
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('새 업적: ${badge.title} — ${badge.description}'),
+          backgroundColor: AppColors.neonDim,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
 
-    final apiKey = ref.read(repoProvider).getGeminiApiKey();
-    if (apiKey != null && apiKey.isNotEmpty && result.addedRuns.isNotEmpty) {
-      _autoGenerateAiReportForNewRuns(result.addedRuns, apiKey);
+    if (result.aiAnalyzedCount > 0) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('당일 새 러닝 ${result.aiAnalyzedCount}개의 AI 분석을 저장했습니다'),
+        ),
+      );
     }
-  }
-
-  void _autoGenerateAiReportForNewRuns(
-      List<RunSession> addedRuns, String apiKey) async {
-    final today = DateTime.now();
-    final todayRuns = addedRuns.where((r) {
-      final d = r.startTime;
-      return d.year == today.year &&
-          d.month == today.month &&
-          d.day == today.day;
-    }).toList();
-
-    if (todayRuns.isEmpty) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('🤖 새 당일 러닝에 대한 AI 요약 보고서를 생성하고 있습니다...'),
-        duration: Duration(seconds: 3),
-      ),
-    );
-
-    final repo = ref.read(repoProvider);
-    final geminiService = GeminiService();
-    final allRuns = await repo.getAll();
-
-    for (final run in todayRuns) {
-      final existing = repo.getAiSummary(run.id);
-      if (existing != null && existing.isNotEmpty) continue;
-
-      try {
-        final recentRuns =
-            allRuns.where((r) => r.id != run.id).take(5).toList();
-        final summary = await geminiService.summarizeRun(
-          apiKey,
-          run,
-          recentRuns,
-        );
-        await repo.saveAiSummary(run.id, summary);
-      } catch (_) {}
+    if (result.aiAnalysisError != null) {
+      messenger.showSnackBar(SnackBar(content: Text(result.aiAnalysisError!)));
     }
   }
 
@@ -327,16 +293,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
       body: RefreshIndicator(
         color: AppColors.neon,
-        onRefresh: _sync,
+        onRefresh: () => _sync(autoAnalyzeNewTodayRuns: true),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             AppSpacing.gapH12,
             Center(
-              child: WeeklyRing(
-                weekKm: stats.weekKm,
-                weekRuns: stats.weekRuns,
-              ),
+              child: WeeklyRing(weekKm: stats.weekKm, weekRuns: stats.weekRuns),
             ),
             AppSpacing.gapH8,
             Center(
@@ -352,10 +315,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             _summaryRow(stats),
             const Padding(
               padding: AppSpacing.sectionHeaderTopPadding,
-              child: Text(
-                '최근 러닝',
-                style: AppTypography.titleMedium,
-              ),
+              child: Text('최근 러닝', style: AppTypography.titleMedium),
             ),
             ...runsAsync.when(
               data: (runs) => runs.isEmpty
@@ -389,11 +349,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                           ],
                         ),
-                      )
+                      ),
                     ]
                   : runs
-                      .take(3)
-                      .map((r) => RunCard(
+                        .take(3)
+                        .map(
+                          (r) => RunCard(
                             run: r,
                             onTap: () => Navigator.push(
                               context,
@@ -401,21 +362,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 builder: (_) => RunDetailScreen(runId: r.id),
                               ),
                             ),
-                          ))
-                      .toList(),
+                          ),
+                        )
+                        .toList(),
               loading: () => const [
                 Center(
                   child: Padding(
                     padding: AppSpacing.all32,
                     child: CircularProgressIndicator(),
                   ),
-                )
+                ),
               ],
               error: (e, _) => [
                 Padding(
                   padding: AppSpacing.all32,
                   child: Text('오류: $e', style: AppTypography.metricLabel),
-                )
+                ),
               ],
             ),
             AppSpacing.gapH24,
@@ -427,23 +389,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _summaryRow(StatsSummary stats) {
     Widget cell(String value, String label, String semantic) => Expanded(
-          child: Semantics(
-            label: semantic,
-            child: Column(
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(label, style: AppTypography.metricLabel),
-              ],
+      child: Semantics(
+        label: semantic,
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 19,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-        );
+            Text(label, style: AppTypography.metricLabel),
+          ],
+        ),
+      ),
+    );
 
     return Card(
       color: AppColors.cardElevated,
@@ -456,11 +418,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               '누적 거리',
               '누적 거리: ${stats.totalKm.toStringAsFixed(1)}킬로미터',
             ),
-            cell(
-              '${stats.totalRuns}회',
-              '총 러닝',
-              '총 러닝: ${stats.totalRuns}회',
-            ),
+            cell('${stats.totalRuns}회', '총 러닝', '총 러닝: ${stats.totalRuns}회'),
             cell(
               '${stats.currentStreakWeeks}주',
               '주3회 스트릭',

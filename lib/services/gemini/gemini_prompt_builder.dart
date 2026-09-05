@@ -24,23 +24,31 @@ class GeminiPromptBuilder {
     buf.writeln(
       '너는 전문 개인 러닝 코치야. 아래 러닝 기록 데이터를 심층 분석해서 한국어로 전문적이고 실용적인 코칭 피드백을 작성해줘.',
     );
-    buf.writeln(
-      '이모지나 과장된 감탄사 없이, 명확하고 논리적인 톤으로 아래 3가지 섹션 형식에 맞춰 작성해줘:',
-    );
+    buf.writeln('이모지나 과장된 감탄사 없이, 명확하고 논리적인 톤으로 작성해줘.');
+    if (run.laps.isNotEmpty || run.splits.isNotEmpty) {
+      buf.writeln(
+        '중요: 아래에는 실제 측정된 구간 데이터가 있다. 이 데이터를 사용해 구간별 페이스를 구체적으로 비교하고, "구간별 페이스를 알 수 없다", "스플릿 데이터가 없다" 또는 이와 같은 취지의 문장을 절대 쓰지 마라.',
+      );
+    } else {
+      buf.writeln(
+        '중요: 이 기록에는 실제 측정된 구간 데이터가 없다. 구간별 변화를 추측하거나 만들어내지 말고, 전체 평균 페이스 범위에서만 분석하라.',
+      );
+    }
+    buf.writeln('아래 3가지 섹션 제목과 순서를 정확히 지켜줘:');
     buf.writeln();
-    buf.writeln('📌 [핵심 요약]');
+    buf.writeln('[핵심 요약]');
     buf.writeln('- 이번 러닝의 총평과 주요 성과 요약 (1~2문장)');
     buf.writeln();
-    buf.writeln('📊 [페이스 & 심박 분석]');
+    buf.writeln('[페이스 & 심박 분석]');
     buf.writeln(
-      '- 제공된 [구간별 스플릿] 또는 [워치 랩 기록] 데이터를 바탕으로 각 구간(km)별 페이스 변화(네거티브/포지티브/이븐 스플릿 등)를 반드시 구체적으로 분석해줘 (절대 페이스나 스플릿 정보를 모른다고 답하지 말고, 데이터가 없더라도 평단 페이스 추이를 기반으로 작성해라).',
+      run.laps.isNotEmpty || run.splits.isNotEmpty
+          ? '- 제공된 실제 구간 데이터를 근거로 빠른/느린 구간과 페이스 배분(네거티브/포지티브/이븐)을 수치와 함께 분석'
+          : '- 전체 평균 페이스를 분석하되, 구간별 변화나 스플릿 형태는 언급하지 않음',
     );
-    buf.writeln(
-      '- 심박수 및 심박존(유산소/지구력/역치) 분포를 바탕으로 한 심폐 효율 및 체력 부하 분석',
-    );
+    buf.writeln('- 심박수 및 심박존(유산소/지구력/역치) 분포를 바탕으로 한 심폐 효율 및 체력 부하 분석');
     buf.writeln('- 최근 러닝 평균과의 비교 및 성장 포인트');
     buf.writeln();
-    buf.writeln('💡 [맞춤 코칭 팁]');
+    buf.writeln('[맞춤 코칭 팁]');
     buf.writeln(
       '- 이번 러닝 데이터를 기반으로 한 다음 훈련 조언 (회복런, 심박존 관리, 케이던스/자세, 다음 목표 거리/페이스 제안 등 실천 가능한 구체적 팁 1~2개)',
     );
@@ -64,7 +72,11 @@ class GeminiPromptBuilder {
     }
     if (run.cardiacDriftPct != null) {
       buf.writeln(
-        '- 심박수 드리프트: ${run.cardiacDriftPct! >= 0 ? '+' : ''}${run.cardiacDriftPct!.toStringAsFixed(1)}% (${run.cardiacDriftPct! < 5.0 ? '지구력 안정적' : run.cardiacDriftPct! <= 10.0 ? '정상 피로' : '심폐 과부하/탈진 주의'})',
+        '- 심박수 드리프트: ${run.cardiacDriftPct! >= 0 ? '+' : ''}${run.cardiacDriftPct!.toStringAsFixed(1)}% (${run.cardiacDriftPct! < 5.0
+            ? '지구력 안정적'
+            : run.cardiacDriftPct! <= 10.0
+            ? '정상 피로'
+            : '심폐 과부하/탈진 주의'})',
       );
     }
     final ratio = run.aerobicAnaerobicRatio;
@@ -81,7 +93,11 @@ class GeminiPromptBuilder {
     }
     final hour = run.startTime.hour;
     buf.writeln(
-      '- 러닝 시간대: ${run.startTime.hour}시 (${hour >= 21 || hour < 4 ? '야간' : hour < 8 ? '새벽' : '주간'} 러닝)',
+      '- 러닝 시간대: ${run.startTime.hour}시 (${hour >= 21 || hour < 4
+          ? '야간'
+          : hour < 8
+          ? '새벽'
+          : '주간'} 러닝)',
     );
 
     // 워치 실제 랩 데이터 (있는 경우)
@@ -89,8 +105,9 @@ class GeminiPromptBuilder {
       buf.writeln();
       buf.writeln('[워치 랩 기록]');
       for (final lap in run.laps) {
-        final hrText =
-            lap.avgHr != null ? ' (평균 ${lap.avgHr!.round()}bpm)' : '';
+        final hrText = lap.avgHr != null
+            ? ' (평균 ${lap.avgHr!.round()}bpm)'
+            : '';
         buf.writeln(
           '- 랩 #${lap.lapNumber} (${lap.distanceKm.toStringAsFixed(2)}km): ${fmtPace(lap.paceSecPerKm)}/km, 소요 ${fmtDuration(lap.durationSec)}$hrText',
         );
@@ -102,8 +119,7 @@ class GeminiPromptBuilder {
         final kmLabel = s.km == s.km.toInt()
             ? '${s.km.toInt()}km'
             : '${s.km.toStringAsFixed(2)}km';
-        final hrText =
-            s.avgHr != null ? ' (평균 ${s.avgHr!.round()}bpm)' : '';
+        final hrText = s.avgHr != null ? ' (평균 ${s.avgHr!.round()}bpm)' : '';
         buf.writeln('- $kmLabel: ${fmtPace(s.paceSecPerKm)}/km$hrText');
       }
     }
@@ -134,11 +150,14 @@ class GeminiPromptBuilder {
 
     // 최근 러닝 평균
     if (recentRuns.isNotEmpty) {
-      final avgKm = recentRuns.fold<double>(0, (a, r) => a + r.distanceKm) /
+      final avgKm =
+          recentRuns.fold<double>(0, (a, r) => a + r.distanceKm) /
           recentRuns.length;
       final avgPace = averagePaceSecPerKm(recentRuns);
-      final validHrs =
-          recentRuns.map((r) => r.avgHr).whereType<double>().toList();
+      final validHrs = recentRuns
+          .map((r) => r.avgHr)
+          .whereType<double>()
+          .toList();
       final avgHr = validHrs.isNotEmpty
           ? (validHrs.reduce((a, b) => a + b) / validHrs.length).round()
           : null;
@@ -168,12 +187,8 @@ class GeminiPromptBuilder {
       4,
       (index) => currentWeek.subtract(Duration(days: (3 - index) * 7)),
     );
-    final weeklyKm = <DateTime, double>{
-      for (final week in weekStarts) week: 0,
-    };
-    final weeklyRuns = <DateTime, int>{
-      for (final week in weekStarts) week: 0,
-    };
+    final weeklyKm = <DateTime, double>{for (final week in weekStarts) week: 0};
+    final weeklyRuns = <DateTime, int>{for (final week in weekStarts) week: 0};
     for (final run in recentRuns) {
       final week = StatsSummary.weekStart(run.startTime);
       if (weeklyKm.containsKey(week)) {
@@ -203,8 +218,9 @@ class GeminiPromptBuilder {
         : '기록 없음';
 
     final recentPace = averagePaceSecPerKm(recentRuns.take(5).toList());
-    final recentAvgPaceStr =
-        recentPace != null ? '${fmtPace(recentPace)}/km' : '기록 없음';
+    final recentAvgPaceStr = recentPace != null
+        ? '${fmtPace(recentPace)}/km'
+        : '기록 없음';
 
     final buf = StringBuffer();
     buf.writeln(
@@ -213,9 +229,7 @@ class GeminiPromptBuilder {
     buf.writeln(
       '급격한 마일리지 증가로 인한 부상을 방지하고(주간 거리 10% 이내 증편 원칙), 현재 체력 수준에 맞춰 달성 가능하면서도 동기부여가 되는 계획을 세워줘.',
     );
-    buf.writeln(
-      '이모지나 과장 없이, 명확하고 논리적인 톤으로 아래 3가지 섹션 형식에 맞춰 작성해줘:',
-    );
+    buf.writeln('이모지나 과장 없이, 명확하고 논리적인 톤으로 아래 3가지 섹션 형식에 맞춰 작성해줘:');
     buf.writeln();
     buf.writeln('🎯 [다음 1~2주 목표]');
     buf.writeln('- 주당 러닝 빈도 및 주간 목표 총 거리 (예: 주 3회, 주간 15~18km)');

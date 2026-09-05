@@ -6,6 +6,7 @@ import '../../../models/run_session.dart';
 import '../../../providers.dart';
 import '../../../services/gemini_service.dart';
 import '../../settings_screen.dart';
+import '../../widgets/ai_report_presentation.dart';
 
 class RunDetailAiSummaryCard extends ConsumerStatefulWidget {
   final RunSession run;
@@ -45,11 +46,9 @@ class _RunDetailAiSummaryCardState
           action: SnackBarAction(
             label: '설정',
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const SettingsScreen(),
-                ),
-              );
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
             },
           ),
         ),
@@ -63,8 +62,11 @@ class _RunDetailAiSummaryCardState
     });
 
     try {
-      final text =
-          await _service.summarizeRun(apiKey, widget.run, widget.recentRuns);
+      final text = await _service.summarizeRun(
+        apiKey,
+        widget.run,
+        widget.recentRuns,
+      );
       await ref.read(repoProvider).saveAiSummary(widget.run.id, text);
       if (!mounted) return;
       setState(() => _summary = text);
@@ -74,76 +76,6 @@ class _RunDetailAiSummaryCardState
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  void _showFullReportModal(BuildContext context, String text) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.cardElevated,
-      shape: const RoundedRectangleBorder(
-        borderRadius: AppRadius.bottomSheetTop,
-      ),
-      builder: (ctx) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.7,
-          maxChildSize: 0.9,
-          minChildSize: 0.4,
-          builder: (_, controller) {
-            return Container(
-              padding: AppSpacing.bottomSheetPadding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: AppSpacing.s16),
-                      decoration: const BoxDecoration(
-                        color: AppColors.textTertiary,
-                        borderRadius: AppRadius.brFull,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      const Icon(Icons.auto_awesome,
-                          color: AppColors.neon, size: 22),
-                      AppSpacing.gapW8,
-                      const Text(
-                        'AI 러닝 상세 분석 보고서',
-                        style: AppTypography.titleMedium,
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.close,
-                            color: AppColors.textSecondary),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const Divider(color: AppColors.borderSubtle, height: 24),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      controller: controller,
-                      child: Text(
-                        text,
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textPrimary,
-                          height: 1.6,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
   }
 
   @override
@@ -171,11 +103,9 @@ class _RunDetailAiSummaryCardState
                   size: AppIconSizes.standard,
                 ),
                 AppSpacing.gapW8,
-                const Text(
-                  'AI 코치 분석 요약',
-                  style: AppTypography.titleSmall,
+                const Expanded(
+                  child: Text('AI 코치 분석 요약', style: AppTypography.titleSmall),
                 ),
-                const Spacer(),
                 if (_summary != null && !_loading)
                   IconButton(
                     icon: const Icon(Icons.refresh, size: AppIconSizes.sm),
@@ -186,47 +116,30 @@ class _RunDetailAiSummaryCardState
               ],
             ),
             AppSpacing.gapH12,
-            if (!hasKey) ...[
-              const Text(
-                'Gemini API 키를 설정하면 러닝 세션별 AI 코칭 분석을 받아볼 수 있습니다.',
-                style: AppTypography.bodySmall,
-              ),
-              AppSpacing.gapH8,
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SettingsScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.key, size: AppIconSizes.sm),
-                label: const Text('API 키 설정하기'),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.neon,
-                ),
-              ),
-            ] else if (_loading) ...[
+            if (_loading) ...[
               const Row(
                 children: [
                   SizedBox(
-                    width: 16,
-                    height: 16,
+                    width: AppIconSizes.sm,
+                    height: AppIconSizes.sm,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: AppColors.neon,
                     ),
                   ),
                   AppSpacing.gapW12,
-                  Text(
-                    'AI 분석 보고서를 생성하는 중입니다...',
-                    style: AppTypography.bodySmall,
+                  Expanded(
+                    child: Text(
+                      'AI 분석 보고서를 생성하는 중입니다...',
+                      style: AppTypography.bodySmall,
+                    ),
                   ),
                 ],
               ),
             ] else if (_summary != null) ...[
               Text(
-                _summary!,
+                extractAiReportSection(_summary!, '핵심 요약'),
+                key: const Key('ai-run-summary-text'),
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.bodyMedium,
@@ -235,17 +148,35 @@ class _RunDetailAiSummaryCardState
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () => _showFullReportModal(context, _summary!),
-                  icon: const Icon(Icons.open_in_new, size: AppIconSizes.sm),
-                  label: const Text('전체 보고서 팝업으로 보기'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.neon,
-                    side: const BorderSide(color: AppColors.borderFocused),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppRadius.br8,
-                    ),
+                  key: const Key('ai-run-full-report-button'),
+                  onPressed: () => showAiReportSheet(
+                    context,
+                    title: 'AI 러닝 상세 분석 보고서',
+                    icon: Icons.auto_awesome,
+                    report: _summary!,
                   ),
+                  icon: const Icon(
+                    Icons.article_outlined,
+                    size: AppIconSizes.sm,
+                  ),
+                  label: const Text('전체 보고서 보기'),
                 ),
+              ),
+            ] else if (!hasKey) ...[
+              const Text(
+                'Gemini API 키를 설정하면 러닝 세션별 AI 코칭 분석을 받아볼 수 있습니다.',
+                style: AppTypography.bodySmall,
+              ),
+              AppSpacing.gapH8,
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                  );
+                },
+                icon: const Icon(Icons.key, size: AppIconSizes.sm),
+                label: const Text('API 키 설정하기'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.neon),
               ),
             ] else ...[
               const Text(

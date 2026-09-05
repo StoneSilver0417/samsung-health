@@ -255,7 +255,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('5.00 km'), findsOneWidget);
-      expect(find.text('AI 러닝 요약'), findsOneWidget);
+      expect(find.text('AI 코치 분석 요약'), findsOneWidget);
       expect(find.text('AI 코칭: 심박수 관리가 아주 우수했습니다.'), findsOneWidget);
       expect(find.text('러닝 역학 & 심폐 효율'), findsOneWidget);
     });
@@ -340,7 +340,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('다음 목표'), findsOneWidget);
+      expect(find.text('다음 목표 AI 제안'), findsOneWidget);
       expect(find.text('추천 목표: 주 3회 15km를 뛰어보세요.'), findsOneWidget);
       expect(find.text('이번 달'), findsOneWidget);
       expect(find.text('월별 거리 추이'), findsOneWidget);
@@ -349,4 +349,3 @@ void main() {
     });
   });
 }
-
