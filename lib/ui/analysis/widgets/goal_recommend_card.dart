@@ -148,8 +148,6 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
               Text(
                 extractAiReportSection(_recommendation!, '다음 1~2주 목표'),
                 key: const Key('ai-goal-summary-text'),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: AppTypography.bodyMedium,
               ),
               AppSpacing.gapH12,

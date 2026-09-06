@@ -140,8 +140,6 @@ class _RunDetailAiSummaryCardState
               Text(
                 extractAiReportSection(_summary!, '핵심 요약'),
                 key: const Key('ai-run-summary-text'),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
                 style: AppTypography.bodyMedium,
               ),
               AppSpacing.gapH12,
