@@ -249,14 +249,66 @@ void main() {
         endTime: DateTime(2026, 8, 1, 21, 30),
         distanceM: 5000,
         durationSec: 1800,
+        avgHr: 150,
+        maxHr: 180,
+        steps: 5100,
+        hrSeries: [
+          HrSample(time: DateTime(2026, 8, 1, 21), bpm: 140),
+          HrSample(time: DateTime(2026, 8, 1, 21, 10), bpm: 142),
+          HrSample(time: DateTime(2026, 8, 1, 21, 20), bpm: 154),
+          HrSample(time: DateTime(2026, 8, 1, 21, 30), bpm: 156),
+        ],
+      );
+
+      final recent = [
+        RunSession(
+          id: 'recent',
+          startTime: DateTime(2026, 7, 30, 21),
+          endTime: DateTime(2026, 7, 30, 21, 32, 30),
+          distanceM: 5000,
+          durationSec: 1950,
+          avgHr: 145,
+          maxHr: 180,
+          steps: 5200,
+          hrSeries: [
+            HrSample(time: DateTime(2026, 7, 30, 21), bpm: 140),
+            HrSample(time: DateTime(2026, 7, 30, 21, 10), bpm: 140),
+            HrSample(time: DateTime(2026, 7, 30, 21, 20), bpm: 147),
+            HrSample(time: DateTime(2026, 7, 30, 21, 30), bpm: 147),
+          ],
+        ),
+      ];
+
+      final prompt = GeminiPromptBuilder.buildRunSummaryPrompt(run, recent);
+
+      expect(prompt, contains('실제 측정된 구간 데이터가 없다'));
+      expect(prompt, contains('구간별 변화, 페이스 배분, 네거티브/포지티브 스플릿을 추측하거나 만들어내지 마라'));
+      expect(prompt, contains('전체 평균 페이스'));
+      expect(prompt, isNot(contains('[구간별 스플릿]')));
+      expect(prompt, contains('평균 케이던스: 170spm'));
+      expect(prompt, contains('심박수 드리프트: +9.9%'));
+      expect(prompt, contains('훈련 부하(TRIMP)'));
+      expect(prompt, contains('[이번 러닝의 최근 평균 대비 변화]'));
+      expect(prompt, contains('평균 페이스: 30초/km 빠름'));
+      expect(prompt, contains('평균 심박수: +5bpm'));
+      expect(prompt, contains('평균 케이던스: +10spm'));
+      expect(prompt, contains('심박수 드리프트: +4.9%p'));
+    });
+
+    test('does not expose rejected cadence as a valid session metric', () {
+      final run = RunSession(
+        id: 'bad-steps',
+        startTime: DateTime(2026, 8, 1, 21),
+        endTime: DateTime(2026, 8, 1, 21, 30),
+        distanceM: 5000,
+        durationSec: 1800,
+        steps: 1000,
       );
 
       final prompt = GeminiPromptBuilder.buildRunSummaryPrompt(run, const []);
 
-      expect(prompt, contains('실제 측정된 구간 데이터가 없다'));
-      expect(prompt, contains('구간별 변화를 추측하거나 만들어내지 말고'));
-      expect(prompt, contains('전체 평균 페이스를 분석하되'));
-      expect(prompt, isNot(contains('[구간별 스플릿]')));
+      expect(prompt, contains('케이던스 산출 불가(불완전한 걸음 샘플)'));
+      expect(prompt, isNot(contains('평균 케이던스: 33spm')));
     });
   });
 

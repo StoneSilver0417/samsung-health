@@ -9,11 +9,7 @@ class DistDelta {
   final DateTime to;
   final double meters;
 
-  const DistDelta({
-    required this.from,
-    required this.to,
-    required this.meters,
-  });
+  const DistDelta({required this.from, required this.to, required this.meters});
 }
 
 /// 기간 단위 Bulk 조회된 Health Connect 데이터들을 개별 러닝 세션으로
@@ -42,12 +38,14 @@ class HealthDataMatcher {
       if (dataSourceId == workoutSourceName) return true;
     }
 
-    final isTargetSamsung = workoutSourceId.contains('shealth') ||
+    final isTargetSamsung =
+        workoutSourceId.contains('shealth') ||
         workoutSourceId.contains('samsung') ||
         workoutSourceName.contains('shealth') ||
         workoutSourceName.toLowerCase().contains('samsung');
     if (isTargetSamsung) {
-      final isPointSamsung = dataSourceId.contains('shealth') ||
+      final isPointSamsung =
+          dataSourceId.contains('shealth') ||
           dataSourceId.contains('samsung') ||
           dataSourceName.contains('shealth') ||
           dataSourceName.toLowerCase().contains('samsung');
@@ -71,8 +69,7 @@ class HealthDataMatcher {
     for (final d in deltas) {
       final overlapStart = d.from.isAfter(from) ? d.from : from;
       final overlapEnd = d.to.isBefore(to) ? d.to : to;
-      final overlapMs =
-          overlapEnd.difference(overlapStart).inMilliseconds;
+      final overlapMs = overlapEnd.difference(overlapStart).inMilliseconds;
       if (overlapMs <= 0) continue;
       final spanMs = d.to.difference(d.from).inMilliseconds;
       sum += spanMs > 0 ? d.meters * overlapMs / spanMs : d.meters;
@@ -95,13 +92,14 @@ class HealthDataMatcher {
 
   /// 거리 델타 시계열로 km별 스플릿 산출.
   /// 1km 경계를 넘는 델타 구간은 선형 보간으로 통과 시각을 추정한다.
-  /// 삼성헬스가 델타를 안 쓰는 경우 빈 리스트가 되어 스플릿 미표시.
+  /// 삼성헬스처럼 세션 전체를 하나의 DISTANCE_DELTA로 내보내는 경우에는
+  /// 시간 비례 보간이 모든 km를 같은 페이스로 꾸며내므로 스플릿을 만들지 않는다.
   static List<Split> computeSplits(
     DateTime sessionStart,
     List<DistDelta> deltas,
     List<HrSample> hrSamples,
   ) {
-    if (deltas.isEmpty) return const [];
+    if (deltas.length < 2) return const [];
 
     final splits = <Split>[];
     double cumM = 0;
@@ -148,10 +146,7 @@ class HealthDataMatcher {
   }
 
   /// Firestore 1MB 문서 제한 대비 다운샘플링 (PRD 5). 로컬 저장도 동일 적용.
-  static List<HrSample> downsampleHr(
-    List<HrSample> samples,
-    Duration bucket,
-  ) {
+  static List<HrSample> downsampleHr(List<HrSample> samples, Duration bucket) {
     if (samples.isEmpty) return const [];
     final out = <HrSample>[];
     DateTime bucketStart = samples.first.time;
@@ -189,16 +184,18 @@ class HealthDataMatcher {
     required String workoutSourceName,
   }) {
     return allHrPoints
-        .where((p) =>
-            !p.dateTo.isBefore(sessionStart) &&
-            !p.dateFrom.isAfter(sessionEnd) &&
-            sameSource(
-              p.sourceId,
-              workoutSourceId,
-              dataSourceName: p.sourceName,
-              workoutSourceName: workoutSourceName,
-            ) &&
-            p.value is NumericHealthValue)
+        .where(
+          (p) =>
+              !p.dateTo.isBefore(sessionStart) &&
+              !p.dateFrom.isAfter(sessionEnd) &&
+              sameSource(
+                p.sourceId,
+                workoutSourceId,
+                dataSourceName: p.sourceName,
+                workoutSourceName: workoutSourceName,
+              ) &&
+              p.value is NumericHealthValue,
+        )
         .map(
           (p) => HrSample(
             time: p.dateFrom,
@@ -218,16 +215,18 @@ class HealthDataMatcher {
     required String workoutSourceName,
   }) {
     return allDistPoints
-        .where((p) =>
-            !p.dateTo.isBefore(sessionStart) &&
-            !p.dateFrom.isAfter(sessionEnd) &&
-            sameSource(
-              p.sourceId,
-              workoutSourceId,
-              dataSourceName: p.sourceName,
-              workoutSourceName: workoutSourceName,
-            ) &&
-            p.value is NumericHealthValue)
+        .where(
+          (p) =>
+              !p.dateTo.isBefore(sessionStart) &&
+              !p.dateFrom.isAfter(sessionEnd) &&
+              sameSource(
+                p.sourceId,
+                workoutSourceId,
+                dataSourceName: p.sourceName,
+                workoutSourceName: workoutSourceName,
+              ) &&
+              p.value is NumericHealthValue,
+        )
         .map(
           (p) => DistDelta(
             from: p.dateFrom,
@@ -252,16 +251,18 @@ class HealthDataMatcher {
       return workoutTotalCalories;
     }
     final calSum = allCalPoints
-        .where((p) =>
-            !p.dateTo.isBefore(sessionStart) &&
-            !p.dateFrom.isAfter(sessionEnd) &&
-            sameSource(
-              p.sourceId,
-              workoutSourceId,
-              dataSourceName: p.sourceName,
-              workoutSourceName: workoutSourceName,
-            ) &&
-            p.value is NumericHealthValue)
+        .where(
+          (p) =>
+              !p.dateTo.isBefore(sessionStart) &&
+              !p.dateFrom.isAfter(sessionEnd) &&
+              sameSource(
+                p.sourceId,
+                workoutSourceId,
+                dataSourceName: p.sourceName,
+                workoutSourceName: workoutSourceName,
+              ) &&
+              p.value is NumericHealthValue,
+        )
         .fold<double>(
           0,
           (sum, p) => sum + (p.value as NumericHealthValue).numericValue,
@@ -286,16 +287,18 @@ class HealthDataMatcher {
       return nativeSteps;
     }
     final sumSteps = allStepsPoints
-        .where((p) =>
-            !p.dateTo.isBefore(sessionStart) &&
-            !p.dateFrom.isAfter(sessionEnd) &&
-            sameSource(
-              p.sourceId,
-              workoutSourceId,
-              dataSourceName: p.sourceName,
-              workoutSourceName: workoutSourceName,
-            ) &&
-            p.value is NumericHealthValue)
+        .where(
+          (p) =>
+              !p.dateTo.isBefore(sessionStart) &&
+              !p.dateFrom.isAfter(sessionEnd) &&
+              sameSource(
+                p.sourceId,
+                workoutSourceId,
+                dataSourceName: p.sourceName,
+                workoutSourceName: workoutSourceName,
+              ) &&
+              p.value is NumericHealthValue,
+        )
         .fold<double>(
           0,
           (sum, p) => sum + (p.value as NumericHealthValue).numericValue,

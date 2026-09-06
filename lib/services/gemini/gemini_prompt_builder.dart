@@ -15,6 +15,17 @@ class GeminiPromptBuilder {
     return (validPaces.reduce((a, b) => a + b) / validPaces.length).round();
   }
 
+  static double? _average(Iterable<double?> values) {
+    final valid = values.whereType<double>().toList();
+    if (valid.isEmpty) return null;
+    return valid.reduce((a, b) => a + b) / valid.length;
+  }
+
+  static String _signed(num value, {int fractionDigits = 0}) {
+    final text = value.abs().toStringAsFixed(fractionDigits);
+    return '${value >= 0 ? '+' : '-'}$text';
+  }
+
   /// 단일 러닝 세션에 대한 전문 코칭 피드백 프롬프트 생성.
   static String buildRunSummaryPrompt(
     RunSession run,
@@ -31,7 +42,7 @@ class GeminiPromptBuilder {
       );
     } else {
       buf.writeln(
-        '중요: 이 기록에는 실제 측정된 구간 데이터가 없다. 구간별 변화를 추측하거나 만들어내지 말고, 전체 평균 페이스 범위에서만 분석하라.',
+        '중요: 이 기록에는 실제 측정된 구간 데이터가 없다. 구간별 변화, 페이스 배분, 네거티브/포지티브 스플릿을 추측하거나 만들어내지 마라. 전체 평균 페이스·심박수·케이던스·심박 드리프트·TRIMP와 최근 러닝 대비 변화만으로 이 세션의 강도, 효율, 피로 특성을 분석하라.',
       );
     }
     buf.writeln('아래 3가지 섹션 제목과 순서를 정확히 지켜줘:');
@@ -43,7 +54,7 @@ class GeminiPromptBuilder {
     buf.writeln(
       run.laps.isNotEmpty || run.splits.isNotEmpty
           ? '- 제공된 실제 구간 데이터를 근거로 빠른/느린 구간과 페이스 배분(네거티브/포지티브/이븐)을 수치와 함께 분석'
-          : '- 전체 평균 페이스를 분석하되, 구간별 변화나 스플릿 형태는 언급하지 않음',
+          : '- 전체 평균 페이스와 제공된 세션 전체 지표만 분석하고, 구간별 변화나 스플릿 형태는 언급하지 않음',
     );
     buf.writeln('- 심박수 및 심박존(유산소/지구력/역치) 분포를 바탕으로 한 심폐 효율 및 체력 부하 분석');
     buf.writeln('- 최근 러닝 평균과의 비교 및 성장 포인트');
@@ -63,9 +74,12 @@ class GeminiPromptBuilder {
     if (run.calories != null) {
       buf.writeln('- 소모 칼로리: ${run.calories!.round()}kcal');
     }
-    if (run.steps != null && run.steps! > 0 && run.durationSec > 0) {
-      final spm = (run.steps! / (run.durationSec / 60)).round();
-      buf.writeln('- 총 걸음수: ${run.steps}걸음 (평균 케이던스: ${spm}spm)');
+    if (run.steps != null && run.steps! > 0) {
+      final cadence = run.cadenceSpm;
+      final cadenceText = cadence == null
+          ? '케이던스 산출 불가(불완전한 걸음 샘플)'
+          : '평균 케이던스: ${cadence.round()}spm';
+      buf.writeln('- 총 걸음수: ${run.steps}걸음 ($cadenceText)');
     }
     if (run.strideCm != null) {
       buf.writeln('- 평균 보폭: ${run.strideCm!.round()}cm');
@@ -161,6 +175,11 @@ class GeminiPromptBuilder {
       final avgHr = validHrs.isNotEmpty
           ? (validHrs.reduce((a, b) => a + b) / validHrs.length).round()
           : null;
+      final avgCadence = _average(recentRuns.map((r) => r.cadenceSpm));
+      final avgDrift = _average(recentRuns.map((r) => r.cardiacDriftPct));
+      final avgLoad =
+          recentRuns.map((r) => r.trainingLoadScore).reduce((a, b) => a + b) /
+          recentRuns.length;
 
       buf.writeln();
       buf.writeln('[최근 ${recentRuns.length}회 러닝 평균 — 비교용]');
@@ -171,6 +190,41 @@ class GeminiPromptBuilder {
       if (avgHr != null) {
         buf.writeln('- 평균 심박수: ${avgHr}bpm');
       }
+      if (avgCadence != null) {
+        buf.writeln('- 평균 케이던스: ${avgCadence.round()}spm');
+      }
+      if (avgDrift != null) {
+        buf.writeln('- 평균 심박수 드리프트: ${avgDrift.toStringAsFixed(1)}%');
+      }
+      buf.writeln('- 평균 훈련 부하(TRIMP): ${avgLoad.round()}pt');
+
+      buf.writeln();
+      buf.writeln('[이번 러닝의 최근 평균 대비 변화]');
+      if (avgPace != null && run.avgPaceSecPerKm > 0) {
+        final paceDelta = run.avgPaceSecPerKm - avgPace;
+        final direction = paceDelta < 0
+            ? '빠름'
+            : paceDelta > 0
+            ? '느림'
+            : '동일';
+        buf.writeln(
+          '- 평균 페이스: ${paceDelta == 0 ? '동일' : '${paceDelta.abs()}초/km $direction'} (음수 변화는 더 빠른 페이스)',
+        );
+      }
+      if (avgHr != null && run.avgHr != null) {
+        buf.writeln('- 평균 심박수: ${_signed(run.avgHr! - avgHr)}bpm');
+      }
+      if (avgCadence != null && run.cadenceSpm != null) {
+        buf.writeln('- 평균 케이던스: ${_signed(run.cadenceSpm! - avgCadence)}spm');
+      }
+      if (avgDrift != null && run.cardiacDriftPct != null) {
+        buf.writeln(
+          '- 심박수 드리프트: ${_signed(run.cardiacDriftPct! - avgDrift, fractionDigits: 1)}%p',
+        );
+      }
+      buf.writeln(
+        '- 훈련 부하(TRIMP): ${_signed(run.trainingLoadScore - avgLoad)}pt',
+      );
     }
 
     return buf.toString();

@@ -27,17 +27,16 @@ void main() {
       expect(splits[2].paceSecPerKm, 360);
     });
 
-    test('300m 미만 잔여 거리는 부분 스플릿 미생성', () {
+    test('computeSplits 델타가 2개 이상일 때만 스플릿 생성 (단일 델타는 빈 스플릿)', () {
       final start = DateTime(2026, 6, 1);
       final deltas = [
         DistDelta(
             from: start,
-            to: start.add(const Duration(minutes: 7)),
-            meters: 1200),
+            to: start.add(const Duration(minutes: 15)),
+            meters: 2500),
       ];
       final splits = HealthService.computeSplits(start, deltas, const []);
-      expect(splits.length, 1);
-      expect(splits[0].km, 1.0);
+      expect(splits, isEmpty);
     });
 
     test('델타 없으면 빈 스플릿 (삼성헬스 미제공 케이스)', () {
