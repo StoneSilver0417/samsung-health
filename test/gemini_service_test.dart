@@ -121,7 +121,7 @@ void main() {
       expect(capturedRequest.headers['Content-Type'], 'application/json');
 
       final body = jsonDecode(capturedRequest.body) as Map<String, dynamic>;
-      expect(body['generationConfig']['maxOutputTokens'], 2048);
+      expect(body['generationConfig']['maxOutputTokens'], 8192);
       expect(body['contents'][0]['parts'][0]['text'], contains('5.00km'));
     });
 

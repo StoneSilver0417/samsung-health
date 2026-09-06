@@ -58,11 +58,11 @@ class GeminiContentDto {
 class GeminiGenerationConfigDto {
   final int maxOutputTokens;
 
-  const GeminiGenerationConfigDto({this.maxOutputTokens = 2048});
+  const GeminiGenerationConfigDto({this.maxOutputTokens = 8192});
 
   factory GeminiGenerationConfigDto.fromJson(Map<String, dynamic> json) {
     return GeminiGenerationConfigDto(
-      maxOutputTokens: (json['maxOutputTokens'] as num?)?.toInt() ?? 2048,
+      maxOutputTokens: (json['maxOutputTokens'] as num?)?.toInt() ?? 8192,
     );
   }
 
@@ -84,7 +84,7 @@ class GeminiGenerateRequestDto {
 
   factory GeminiGenerateRequestDto.textPrompt(
     String prompt, {
-    int maxOutputTokens = 2048,
+    int maxOutputTokens = 8192,
   }) {
     return GeminiGenerateRequestDto(
       contents: [GeminiContentDto.text(prompt)],

@@ -58,7 +58,7 @@ void main() {
       () {
         final req = GeminiGenerateRequestDto.textPrompt(
           'Generate workout advice',
-          maxOutputTokens: 2048,
+          maxOutputTokens: 8192,
         );
         final rawJson = req.toRawJson();
         final map = jsonDecode(rawJson) as Map<String, dynamic>;
@@ -67,14 +67,14 @@ void main() {
           map['contents'][0]['parts'][0]['text'],
           'Generate workout advice',
         );
-        expect(map['generationConfig']['maxOutputTokens'], 2048);
+        expect(map['generationConfig']['maxOutputTokens'], 8192);
 
         final fromJson = GeminiGenerateRequestDto.fromJson(map);
         expect(
           fromJson.contents.first.parts.first.text,
           'Generate workout advice',
         );
-        expect(fromJson.generationConfig.maxOutputTokens, 2048);
+        expect(fromJson.generationConfig.maxOutputTokens, 8192);
       },
     );
 
