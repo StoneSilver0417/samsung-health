@@ -41,6 +41,7 @@ Future<void> showAiReportSheet(
   required String title,
   required IconData icon,
   required String report,
+  VoidCallback? onRegenerate,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -74,6 +75,15 @@ Future<void> showAiReportSheet(
                 Icon(icon, color: AppColors.neon, size: AppIconSizes.lg),
                 AppSpacing.gapW8,
                 Expanded(child: Text(title, style: AppTypography.titleMedium)),
+                if (onRegenerate != null)
+                  IconButton(
+                    tooltip: 'AI 보고서 다시 생성',
+                    icon: const Icon(Icons.refresh, color: AppColors.neon),
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      onRegenerate();
+                    },
+                  ),
                 IconButton(
                   tooltip: '닫기',
                   icon: const Icon(Icons.close, color: AppColors.textSecondary),

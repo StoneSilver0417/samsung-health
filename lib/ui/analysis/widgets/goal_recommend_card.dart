@@ -160,6 +160,7 @@ class _GoalRecommendCardState extends ConsumerState<GoalRecommendCard> {
                     title: 'AI 맞춤 다음 목표 가이드',
                     icon: Icons.flag,
                     report: _recommendation!,
+                    onRegenerate: _generate,
                   ),
                   icon: const Icon(
                     Icons.article_outlined,

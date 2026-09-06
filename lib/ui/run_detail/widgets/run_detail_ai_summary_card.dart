@@ -152,6 +152,7 @@ class _RunDetailAiSummaryCardState
                     title: 'AI 러닝 상세 분석 보고서',
                     icon: Icons.auto_awesome,
                     report: _summary!,
+                    onRegenerate: _generate,
                   ),
                   icon: const Icon(
                     Icons.article_outlined,
