@@ -90,12 +90,17 @@ Future<void> showAiReportSheet(
                 label: '$title 전체 내용',
                 child: SingleChildScrollView(
                   controller: scrollController,
-                  child: SelectableText(
-                    report,
-                    key: const Key('ai-full-report-text'),
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: AppColors.textPrimary,
-                      height: 1.6,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).padding.bottom + AppSpacing.s24,
+                    ),
+                    child: SelectableText(
+                      report,
+                      key: const Key('ai-full-report-text'),
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        height: 1.6,
+                      ),
                     ),
                   ),
                 ),
