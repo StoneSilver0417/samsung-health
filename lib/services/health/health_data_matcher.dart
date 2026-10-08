@@ -454,7 +454,7 @@ class HealthDataMatcher {
     required String workoutSourceId,
     required String workoutSourceName,
   }) {
-    return allDistPoints
+    final rawDeltas = allDistPoints
         .where(
           (p) =>
               !p.dateTo.isBefore(sessionStart) &&
@@ -474,8 +474,8 @@ class HealthDataMatcher {
             meters: (p.value as NumericHealthValue).numericValue.toDouble(),
           ),
         )
-        .toList()
-      ..sort((a, b) => a.from.compareTo(b.from));
+        .toList();
+    return deduplicateDistanceDeltas(rawDeltas);
   }
 
   /// 칼로리 매칭 (Workout 집계값 우선, 없을 시 개별 칼로리 레코드 합산)
@@ -620,7 +620,9 @@ class HealthDataMatcher {
 
     final deltaSum = deltas.fold<double>(0, (sum, d) => sum + d.meters);
     final distanceM = (workoutValue.totalDistance?.toDouble() ?? 0) > 0
-        ? workoutValue.totalDistance!.toDouble()
+        ? ((workoutValue.totalDistance!.toDouble() - deltaSum).abs() < 50.0 || deltaSum == 0
+            ? workoutValue.totalDistance!.toDouble()
+            : deltaSum)
         : deltaSum;
 
     final calories = matchCalories(
