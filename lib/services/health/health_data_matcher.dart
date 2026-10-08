@@ -59,6 +59,246 @@ class HealthDataMatcher {
     return dataSourceId == workoutSourceId;
   }
 
+  /// 거리 델타 시계열에서 중복/포괄하는 매크로 집계/중복 시간 구간 델타를 제거하여
+  /// 거리 2배 중복 합산(distance doubling)을 방지한다.
+  static List<DistDelta> deduplicateDistanceDeltas(List<DistDelta> rawDeltas) {
+    if (rawDeltas.length <= 1) return rawDeltas;
+
+    final valid = rawDeltas
+        .where((d) => d.meters >= 0 && d.to.isAfter(d.from))
+        .toList();
+    if (valid.length <= 1) return valid;
+
+    // 1. 동일 시간 구간의 중복 델타 통합 (더 큰 거리 유지)
+    final uniqueSpanMap = <String, DistDelta>{};
+    for (final d in valid) {
+      final key =
+          '${d.from.millisecondsSinceEpoch}-${d.to.millisecondsSinceEpoch}';
+      if (!uniqueSpanMap.containsKey(key) ||
+          d.meters > uniqueSpanMap[key]!.meters) {
+        uniqueSpanMap[key] = d;
+      }
+    }
+    final uniqueSpans = uniqueSpanMap.values.toList()
+      ..sort((a, b) => a.from.compareTo(b.from));
+
+    if (uniqueSpans.length <= 1) return uniqueSpans;
+
+    // 2. 여러 세부 델타를 포괄하는 대형 매크로/집계 델타(전체 세션 단일 델타 등) 제거
+    final result = <DistDelta>[];
+    for (final current in uniqueSpans) {
+      final contained = uniqueSpans.where((other) =>
+          other != current &&
+          !other.from.isBefore(current.from) &&
+          !other.to.isAfter(current.to) &&
+          (other.from.isAfter(current.from) || other.to.isBefore(current.to))).toList();
+
+      if (contained.isNotEmpty) {
+        final containedMeters =
+            contained.fold<double>(0, (s, d) => s + d.meters);
+        if (containedMeters > 0) {
+          // 세부 델타들이 존재하므로 매크로 집계 델타는 제외
+          continue;
+        }
+      }
+      result.add(current);
+    }
+
+    // 3. 겹치는 시간 구간의 부분 델타 비례 조정
+    final nonOverlapping = <DistDelta>[];
+    for (final d in result) {
+      if (nonOverlapping.isEmpty) {
+        nonOverlapping.add(d);
+        continue;
+      }
+      final prev = nonOverlapping.last;
+      if (!d.from.isBefore(prev.to)) {
+        nonOverlapping.add(d);
+      } else {
+        final overlapMs = prev.to.difference(d.from).inMilliseconds;
+        final dSpanMs = d.to.difference(d.from).inMilliseconds;
+        if (dSpanMs > overlapMs && d.to.isAfter(prev.to)) {
+          final nonOverlapSpanMs = d.to.difference(prev.to).inMilliseconds;
+          final nonOverlapMeters = d.meters * (nonOverlapSpanMs / dSpanMs);
+          if (nonOverlapMeters > 0) {
+            nonOverlapping.add(DistDelta(
+              from: prev.to,
+              to: d.to,
+              meters: nonOverlapMeters,
+            ));
+          }
+        }
+      }
+    }
+
+    return nonOverlapping;
+  }
+
+  /// 중복되거나 시간대가 겹치는 WORKOUT 레코드들을 우선순위에 따라 단일 세션으로 정리.
+  /// (동일 시작/종료 시각, 또는 겹치는 시간 구간의 워크아웃)
+  static List<(HealthDataPoint, WorkoutHealthValue)> deduplicateWorkouts(
+    List<(HealthDataPoint, WorkoutHealthValue)> workouts,
+  ) {
+    if (workouts.length <= 1) return workouts;
+
+    final sorted = List<(HealthDataPoint, WorkoutHealthValue)>.from(workouts)
+      ..sort((a, b) {
+        final cmp = a.$1.dateFrom.compareTo(b.$1.dateFrom);
+        if (cmp != 0) return cmp;
+        final durA = a.$1.dateTo.difference(a.$1.dateFrom).inMilliseconds;
+        final durB = b.$1.dateTo.difference(b.$1.dateFrom).inMilliseconds;
+        return durB.compareTo(durA);
+      });
+
+    final accepted = <(HealthDataPoint, WorkoutHealthValue)>[];
+
+    for (final candidate in sorted) {
+      final (candPoint, _) = candidate;
+      int overlappingIdx = -1;
+
+      for (var i = 0; i < accepted.length; i++) {
+        final (accPoint, _) = accepted[i];
+        final overlapStart = candPoint.dateFrom.isAfter(accPoint.dateFrom)
+            ? candPoint.dateFrom
+            : accPoint.dateFrom;
+        final overlapEnd = candPoint.dateTo.isBefore(accPoint.dateTo)
+            ? candPoint.dateTo
+            : accPoint.dateTo;
+        if (overlapEnd.isAfter(overlapStart)) {
+          overlappingIdx = i;
+          break;
+        }
+      }
+
+      if (overlappingIdx == -1) {
+        accepted.add(candidate);
+      } else {
+        final existing = accepted[overlappingIdx];
+        if (compareWorkoutScore(candidate, existing) > 0) {
+          accepted[overlappingIdx] = candidate;
+        }
+      }
+    }
+
+    return accepted..sort((a, b) => a.$1.dateFrom.compareTo(b.$1.dateFrom));
+  }
+
+  /// WORKOUT 우선순위 평가: Samsung Health 출처 > 유효한 총거리 > 소요 시간 > 상세 지표
+  static int compareWorkoutScore(
+    (HealthDataPoint, WorkoutHealthValue) a,
+    (HealthDataPoint, WorkoutHealthValue) b,
+  ) {
+    final (pointA, valA) = a;
+    final (pointB, valB) = b;
+
+    final aIsSamsung = pointA.sourceId.contains('shealth') ||
+        pointA.sourceId.contains('samsung') ||
+        pointA.sourceName.toLowerCase().contains('samsung');
+    final bIsSamsung = pointB.sourceId.contains('shealth') ||
+        pointB.sourceId.contains('samsung') ||
+        pointB.sourceName.toLowerCase().contains('samsung');
+    if (aIsSamsung && !bIsSamsung) return 1;
+    if (!aIsSamsung && bIsSamsung) return -1;
+
+    final distA = valA.totalDistance?.toDouble() ?? 0.0;
+    final distB = valB.totalDistance?.toDouble() ?? 0.0;
+    if (distA > 0 && distB <= 0) return 1;
+    if (distA <= 0 && distB > 0) return -1;
+    if ((distA - distB).abs() > 10.0) {
+      return distA > distB ? 1 : -1;
+    }
+
+    final durA = pointA.dateTo.difference(pointA.dateFrom).inSeconds;
+    final durB = pointB.dateTo.difference(pointB.dateFrom).inSeconds;
+    if ((durA - durB).abs() > 10) {
+      return durA > durB ? 1 : -1;
+    }
+
+    final metricsA = (valA.totalEnergyBurned != null ? 1 : 0) +
+        (valA.totalSteps != null ? 1 : 0);
+    final metricsB = (valB.totalEnergyBurned != null ? 1 : 0) +
+        (valB.totalSteps != null ? 1 : 0);
+    if (metricsA != metricsB) return metricsA > metricsB ? 1 : -1;
+
+    return 0;
+  }
+
+  /// RunSession 목록에서 동일하거나 시간대가 겹치는 세션을 우선순위에 따라 단일 세션으로 정리.
+  static List<RunSession> deduplicateSessions(List<RunSession> sessions) {
+    if (sessions.length <= 1) return sessions;
+
+    final sorted = List<RunSession>.from(sessions)
+      ..sort((a, b) {
+        final cmp = a.startTime.compareTo(b.startTime);
+        if (cmp != 0) return cmp;
+        return b.durationSec.compareTo(a.durationSec);
+      });
+
+    final accepted = <RunSession>[];
+
+    for (final candidate in sorted) {
+      int overlappingIdx = -1;
+
+      for (var i = 0; i < accepted.length; i++) {
+        final acc = accepted[i];
+        final overlapStart = candidate.startTime.isAfter(acc.startTime)
+            ? candidate.startTime
+            : acc.startTime;
+        final overlapEnd = candidate.endTime.isBefore(acc.endTime)
+            ? candidate.endTime
+            : acc.endTime;
+        if (overlapEnd.isAfter(overlapStart)) {
+          overlappingIdx = i;
+          break;
+        }
+      }
+
+      if (overlappingIdx == -1) {
+        accepted.add(candidate);
+      } else {
+        final existing = accepted[overlappingIdx];
+        if (compareSessionScore(candidate, existing) > 0) {
+          accepted[overlappingIdx] = candidate;
+        }
+      }
+    }
+
+    return accepted..sort((a, b) => a.startTime.compareTo(b.startTime));
+  }
+
+  /// RunSession 우선순위 평가: Samsung Health 출처 > 거리 > 소요 시간 > 상세 지표
+  static int compareSessionScore(RunSession a, RunSession b) {
+    final aIsSamsung = a.sourceName.toLowerCase().contains('samsung') ||
+        a.sourceName.contains('shealth');
+    final bIsSamsung = b.sourceName.toLowerCase().contains('samsung') ||
+        b.sourceName.contains('shealth');
+    if (aIsSamsung && !bIsSamsung) return 1;
+    if (!aIsSamsung && bIsSamsung) return -1;
+
+    if (a.distanceM > 0 && b.distanceM <= 0) return 1;
+    if (a.distanceM <= 0 && b.distanceM > 0) return -1;
+    if ((a.distanceM - b.distanceM).abs() > 10.0) {
+      return a.distanceM > b.distanceM ? 1 : -1;
+    }
+
+    if ((a.durationSec - b.durationSec).abs() > 10) {
+      return a.durationSec > b.durationSec ? 1 : -1;
+    }
+
+    final scoreA = (a.avgHr != null ? 1 : 0) +
+        (a.steps != null ? 1 : 0) +
+        (a.calories != null ? 1 : 0) +
+        (a.splits.isNotEmpty ? 1 : 0) +
+        (a.laps.isNotEmpty ? 1 : 0);
+    final scoreB = (b.avgHr != null ? 1 : 0) +
+        (b.steps != null ? 1 : 0) +
+        (b.calories != null ? 1 : 0) +
+        (b.splits.isNotEmpty ? 1 : 0) +
+        (b.laps.isNotEmpty ? 1 : 0);
+
+    return scoreA.compareTo(scoreB);
+  }
+
   /// [from]~[to] 구간의 거리(미터) — 델타가 경계에 걸치면 시간 비례 배분
   static double distanceBetween(
     List<DistDelta> deltas,

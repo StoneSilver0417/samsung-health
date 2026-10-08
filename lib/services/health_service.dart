@@ -125,10 +125,14 @@ class HealthService {
 
     if (runWorkouts.isEmpty) return const [];
 
+    // 중복 및 겹치는 삼성헬스/Health Connect 세션 디두플리케이션
+    final dedupedRunWorkouts =
+        HealthDataMatcher.deduplicateWorkouts(runWorkouts);
+
     // 전체 러닝 세션의 최소 시작 시각과 최대 종료 시각
-    var bulkStart = runWorkouts.first.$1.dateFrom;
-    var bulkEnd = runWorkouts.first.$1.dateTo;
-    for (final (point, _) in runWorkouts) {
+    var bulkStart = dedupedRunWorkouts.first.$1.dateFrom;
+    var bulkEnd = dedupedRunWorkouts.first.$1.dateTo;
+    for (final (point, _) in dedupedRunWorkouts) {
       if (point.dateFrom.isBefore(bulkStart)) bulkStart = point.dateFrom;
       if (point.dateTo.isAfter(bulkEnd)) bulkEnd = point.dateTo;
     }
@@ -150,7 +154,7 @@ class HealthService {
         bulkResults[4] as Map<String, NativeSessionDetail>;
 
     // 각 세션별 고도 데이터 병렬 조회
-    final elevationFutures = runWorkouts.map((w) {
+    final elevationFutures = dedupedRunWorkouts.map((w) {
       return _nativeChannel.fetchElevation(
         w.$1.dateFrom,
         w.$1.dateTo,
@@ -161,8 +165,8 @@ class HealthService {
 
     // In-memory 매칭으로 RunSession 조립
     final runs = <RunSession>[];
-    for (var i = 0; i < runWorkouts.length; i++) {
-      final (point, value) = runWorkouts[i];
+    for (var i = 0; i < dedupedRunWorkouts.length; i++) {
+      final (point, value) = dedupedRunWorkouts[i];
       final nativeDetail = nativeDetailsMap[point.uuid];
       final elevation = elevations[i];
 
