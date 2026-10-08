@@ -619,11 +619,13 @@ class HealthDataMatcher {
     );
 
     final deltaSum = deltas.fold<double>(0, (sum, d) => sum + d.meters);
-    final distanceM = (workoutValue.totalDistance?.toDouble() ?? 0) > 0
-        ? ((workoutValue.totalDistance!.toDouble() - deltaSum).abs() < 50.0 || deltaSum == 0
+    // 삼성헬스 totalDistance와 Health Connect deltaSum 중 유효한 세션 실측치 선택
+    // totalDistance가 4.39km, deltaSum이 4.07km 등으로 약간 다를 때, deltaSum이 유효하면 GPS/이동 델타 합(deltaSum)을 우선 적용
+    final distanceM = deltaSum > 0
+        ? deltaSum
+        : ((workoutValue.totalDistance?.toDouble() ?? 0) > 0
             ? workoutValue.totalDistance!.toDouble()
-            : deltaSum)
-        : deltaSum;
+            : 0.0);
 
     final calories = matchCalories(
       allCalPoints: allCalPoints,
