@@ -182,7 +182,7 @@ class HealthService {
       );
       runs.add(session);
     }
-    return runs;
+    return HealthDataMatcher.deduplicateSessions(runs);
   }
 
   Future<List<HealthDataPoint>> _getBulkHealthData(
